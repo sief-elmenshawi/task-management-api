@@ -265,7 +265,3 @@ services.
 - Soft-deleted users are retained in the database for auditing; there is no hard-delete or restore
   endpoint.
 
-## AI tools used
-
-Used OpenCode to generate code from detailed prompts I wrote (architecture, requirements,
-conventions). I reviewed the code, ran the tests and verified the behavior manually.
