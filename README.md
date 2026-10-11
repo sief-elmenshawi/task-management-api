@@ -2,8 +2,7 @@
 
 A simple, clean task management backend API built with ASP.NET Core following Onion Architecture.
 
-> Hiring technical task. Scope is intentionally limited - no MediatR, no CQRS, no generic repository
-> over-abstraction.
+
 
 ## Architecture
 
