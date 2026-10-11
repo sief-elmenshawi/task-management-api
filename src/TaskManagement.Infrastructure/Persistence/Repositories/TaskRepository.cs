@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TaskManagement.Domain.Entities;
+using TaskManagement.Domain.Enums;
 using TaskManagement.Domain.Repositories;
 
 namespace TaskManagement.Infrastructure.Persistence.Repositories;
@@ -37,6 +38,12 @@ public sealed class TaskRepository : ITaskRepository
                 && t.NormalizedTitle == normalizedTitle
                 && t.CreatedDate == createdDate,
             cancellationToken);
+
+    public async Task<IReadOnlyList<TaskItem>> GetPendingAsync(CancellationToken cancellationToken = default) =>
+        await _context.Tasks
+            .Where(t => t.Status == TaskItemStatus.Pending)
+            .OrderBy(t => t.CreatedAt)
+            .ToListAsync(cancellationToken);
 
     public async Task AddAsync(TaskItem task, CancellationToken cancellationToken = default) =>
         await _context.Tasks.AddAsync(task, cancellationToken);

@@ -12,7 +12,7 @@ using TaskManagement.Infrastructure.Queues;
 
 namespace TaskManagement.Infrastructure.Workers;
 
-public sealed class TaskProcessingWorker : BackgroundService
+public class TaskProcessingWorker : BackgroundService
 {
     private const int MinDelayMilliseconds = 3000;
     private const int MaxDelayMilliseconds = 5000;
@@ -37,6 +37,8 @@ public sealed class TaskProcessingWorker : BackgroundService
 
         var reader = _queue.Reader(TaskQueues.TaskProcessing);
 
+        var recovery = RecoverPendingTasksAsync(stoppingToken);
+
         await foreach (var taskId in reader.ReadAllAsync(stoppingToken))
         {
             try
@@ -53,15 +55,42 @@ public sealed class TaskProcessingWorker : BackgroundService
             }
         }
 
+        await recovery;
+
         _logger.LogInformation("Task processing worker stopped.");
     }
 
-    private async Task ProcessAsync(Guid taskId, CancellationToken cancellationToken)
+    private async Task RecoverPendingTasksAsync(CancellationToken cancellationToken)
     {
-        await Task.Delay(Random.Shared.Next(MinDelayMilliseconds, MaxDelayMilliseconds + 1), cancellationToken);
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<ITaskRepository>();
+
+            var pending = await repository.GetPendingAsync(cancellationToken);
+
+            foreach (var task in pending)
+            {
+                await _queue.EnqueueAsync(TaskQueues.TaskProcessing, task.Id, cancellationToken);
+            }
+
+            _logger.LogInformation("Recovered {Count} pending task(s) after startup.", pending.Count);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Pending task recovery was cancelled during shutdown.");
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to recover pending tasks after startup.");
+        }
+    }
+
+    internal async Task ProcessAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        await DelayAsync(cancellationToken);
 
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var repository = scope.ServiceProvider.GetRequiredService<ITaskRepository>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         var cache = scope.ServiceProvider.GetRequiredService<ICacheService>();
@@ -91,6 +120,7 @@ public sealed class TaskProcessingWorker : BackgroundService
         }
         catch (ConcurrencyException)
         {
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await context.Entry(task).ReloadAsync(cancellationToken);
 
             _logger.LogInformation(
@@ -105,4 +135,7 @@ public sealed class TaskProcessingWorker : BackgroundService
 
         _logger.LogInformation("Task {TaskId} moved from Pending to InProgress.", taskId);
     }
+
+    protected virtual Task DelayAsync(CancellationToken cancellationToken) =>
+        Task.Delay(Random.Shared.Next(MinDelayMilliseconds, MaxDelayMilliseconds + 1), cancellationToken);
 }
