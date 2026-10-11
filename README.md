@@ -27,9 +27,13 @@ TaskManagement.Domain  (entities, enums, repository interfaces, domain exception
 - `TaskManagement.Application` - depends on Domain.
 - `TaskManagement.Infrastructure` - depends on Application + Domain.
 - `TaskManagement.Api` - depends on Application + Infrastructure (Infrastructure only referenced from `Program.cs` for DI).
-- `TaskManagement.UnitTests` - xUnit tests for the domain, application services and the worker.
+- `TaskManagement.UnitTests` - xUnit tests for the domain, application services, the EF Core query
+  behaviour (task list ordering and ownership, soft delete) and the worker.
 
 Entities are never returned from the API; only DTOs.
+
+Persistence detail: `Priority` is stored as an `int` (while `Status` is stored as a `string`), so
+`ORDER BY Priority DESC` sorts `High`, `Medium`, `Low` numerically.
 
 ## Stack
 
@@ -225,7 +229,8 @@ All errors are returned as RFC 7807 ProblemDetails.
 ## Tests
 
 Unit tests live in `tests/TaskManagement.UnitTests` and cover the domain entities, the application
-services (auth, tasks, users) and the background worker.
+services (auth, tasks, users), the EF Core query behaviour (task list ordering and ownership,
+soft-delete query filters and login for deleted users) and the background worker.
 
 ```bash
 dotnet test
