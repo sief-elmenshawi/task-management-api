@@ -58,9 +58,12 @@ var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-if (app.Environment.IsDevelopment())
+var swaggerEnabled = builder.Configuration.GetValue("Swagger:Enabled", true);
+
+if (swaggerEnabled)
 {
     app.UseSwaggerDocs();
+    app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
 
 app.UseHttpsRedirection();
