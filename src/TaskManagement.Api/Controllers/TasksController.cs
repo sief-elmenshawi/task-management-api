@@ -27,7 +27,7 @@ public sealed class TasksController : ControllerBase
     /// Creates a task for the current user. A user cannot create two tasks with the same title on the same day.
     /// </summary>
     [HttpPost]
-    [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
@@ -41,7 +41,13 @@ public sealed class TasksController : ControllerBase
         }
 
         var result = await _taskService.CreateAsync(userId, request, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblemDetails();
+
+        if (!result.IsSuccess)
+        {
+            return result.ToProblemDetails();
+        }
+
+        return CreatedAtAction(nameof(GetById), new { id = result.Value.Id }, result.Value);
     }
 
     /// <summary>

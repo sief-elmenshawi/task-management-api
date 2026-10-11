@@ -41,7 +41,7 @@ public sealed class UsersController : ControllerBase
     /// Creates a new user account.
     /// </summary>
     [HttpPost]
-    [ProducesResponseType(typeof(UserAdminResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UserAdminResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -51,7 +51,9 @@ public sealed class UsersController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _userService.CreateAsync(request, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblemDetails();
+        return result.IsSuccess
+            ? StatusCode(StatusCodes.Status201Created, result.Value)
+            : result.ToProblemDetails();
     }
 
     /// <summary>

@@ -27,7 +27,7 @@ public sealed class AuthController : ControllerBase
     /// </summary>
     [AllowAnonymous]
     [HttpPost("register")]
-    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Register(
@@ -35,7 +35,9 @@ public sealed class AuthController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _authService.RegisterAsync(request, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : result.ToProblemDetails();
+        return result.IsSuccess
+            ? StatusCode(StatusCodes.Status201Created, result.Value)
+            : result.ToProblemDetails();
     }
 
     /// <summary>
