@@ -8,7 +8,8 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
     public AppDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql("Host=localhost;Port=5432;Database=taskmanagement;Username=postgres;Password=postgres")
+            .UseSqlServer(
+                "Server=localhost,1433;Database=TaskManagement;User Id=sa;Password=TaskManager@2026;TrustServerCertificate=True;MultipleActiveResultSets=True")
             .Options;
 
         return new AppDbContext(options);
