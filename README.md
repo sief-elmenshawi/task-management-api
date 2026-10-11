@@ -40,28 +40,67 @@ Entities are never returned from the API; only DTOs.
 
 ## Getting started
 
-1. Start local dependencies:
+### 1. Database
 
-   ```bash
-   docker compose up -d
-   ```
+Pick one of two options.
 
-2. Apply migrations and run the API:
+**Option A - Docker SQL Server (recommended)**
 
-   ```bash
-   dotnet run --project src/TaskManagement.Api
-   ```
+```bash
+docker compose up -d
+```
 
-   Migrations are applied automatically on startup and an admin user is seeded
-   if missing (`admin@example.com` / `Admin@123`).
+This starts SQL Server 2022 on `localhost,1433` (and Redis). The SA password is
+read from the `SA_PASSWORD` environment variable, defaulting to
+`TaskManager@2026`. Copy `.env.example` to `.env` to override it:
 
-3. Open Swagger at `https://localhost:<port>/swagger`.
+```bash
+cp .env.example .env
+```
+
+The default connection string in `appsettings.json` targets this container.
+
+**Option B - Existing local SQL Server**
+
+Set `ConnectionStrings:DefaultConnection` in `appsettings.Development.json`. The
+default there uses Windows authentication against the local default instance:
+
+```
+Server=.;Database=TaskManagement;Trusted_Connection=true;TrustServerCertificate=true
+```
+
+`appsettings.Development.json` is layered on top of `appsettings.json`, so when
+the environment is `Development` (the default for `dotnet run` and for the
+design-time `dotnet ef` factory) the local instance is used instead of Docker.
+The connection can also come from the `ConnectionStrings__DefaultConnection`
+environment variable.
+
+### 2. Run the API
+
+```bash
+dotnet run --project src/TaskManagement.Api
+```
+
+Migrations are applied automatically on startup and an admin user is seeded if
+missing.
+
+### 3. Seed credentials
+
+| Email               | Password    |
+| ------------------- | ----------- |
+| `admin@example.com` | `Admin@123` |
+
+### 4. Swagger
+
+Open Swagger UI at `https://localhost:<port>/swagger`.
 
 ## Configuration
 
-- `JwtSettings` (key, issuer, audience, expiry) are read from configuration.
-- No secrets are hardcoded. A development-only key lives in
+- `ConnectionStrings:DefaultConnection` - SQL Server connection string. Docker
+  default lives in `appsettings.json`; local override in
   `appsettings.Development.json`.
+- `JwtSettings` (key, issuer, audience, expiry) are read from configuration. A
+  development-only key lives in `appsettings.Development.json`.
 - CORS allowed origins come from `Cors:AllowedOrigins` (default
   `http://localhost:5173`).
 
