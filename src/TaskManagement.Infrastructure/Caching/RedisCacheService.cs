@@ -32,7 +32,15 @@ public sealed class RedisCacheService : ICacheService
             }
 
             var value = await database.StringGetAsync(key);
-            return value.IsNullOrEmpty ? default : JsonSerializer.Deserialize<T>(value.ToString(), SerializerOptions);
+
+            if (value.IsNullOrEmpty)
+            {
+                _logger.LogDebug("Cache miss for {Key}.", key);
+                return default;
+            }
+
+            _logger.LogDebug("Cache hit for {Key}.", key);
+            return JsonSerializer.Deserialize<T>(value.ToString(), SerializerOptions);
         }
         catch (Exception exception)
         {
