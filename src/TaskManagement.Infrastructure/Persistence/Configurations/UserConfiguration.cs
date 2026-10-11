@@ -21,7 +21,8 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(256);
 
         builder.HasIndex(u => u.Email)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
 
         builder.Property(u => u.PasswordHash)
             .IsRequired()
@@ -34,6 +35,14 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(u => u.CreatedAt)
             .IsRequired();
+
+        builder.Property(u => u.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(u => u.DeletedAt);
+
+        builder.HasQueryFilter(u => !u.IsDeleted);
 
         builder.HasMany(u => u.RefreshTokens)
             .WithOne(t => t.User)

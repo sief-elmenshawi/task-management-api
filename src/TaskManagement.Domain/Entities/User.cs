@@ -10,6 +10,8 @@ public class User
     public string PasswordHash { get; private set; } = string.Empty;
     public UserRole Role { get; private set; }
     public DateTime CreatedAt { get; private set; }
+    public bool IsDeleted { get; private set; }
+    public DateTime? DeletedAt { get; private set; }
 
     public ICollection<RefreshToken> RefreshTokens { get; private set; } = new List<RefreshToken>();
     public ICollection<TaskItem> Tasks { get; private set; } = new List<TaskItem>();
@@ -31,4 +33,15 @@ public class User
     public void ChangePasswordHash(string passwordHash) => PasswordHash = passwordHash;
 
     public void ChangeRole(UserRole role) => Role = role;
+
+    public void MarkAsDeleted()
+    {
+        if (IsDeleted)
+        {
+            return;
+        }
+
+        IsDeleted = true;
+        DeletedAt = DateTime.UtcNow;
+    }
 }

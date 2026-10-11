@@ -30,5 +30,5 @@ public sealed class UserRepository : IUserRepository
     public async Task AddAsync(User user, CancellationToken cancellationToken = default) =>
         await _context.Users.AddAsync(user, cancellationToken);
 
-    public void Remove(User user) => _context.Users.Remove(user);
+    public void Update(User user) => _context.Users.Update(user);
 }

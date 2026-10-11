@@ -12,17 +12,20 @@ namespace TaskManagement.Application.Users;
 public sealed class UserService : IUserService
 {
     private readonly IUserRepository _users;
+    private readonly IRefreshTokenRepository _refreshTokens;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IValidator<RegisterRequest> _registerValidator;
 
     public UserService(
         IUserRepository users,
+        IRefreshTokenRepository refreshTokens,
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         IValidator<RegisterRequest> registerValidator)
     {
         _users = users;
+        _refreshTokens = refreshTokens;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _registerValidator = registerValidator;
@@ -81,7 +84,20 @@ public sealed class UserService : IUserService
             return Result.Failure(Error.NotFound("User not found.", "UserNotFound"));
         }
 
-        _users.Remove(user);
+        user.MarkAsDeleted();
+        _users.Update(user);
+
+        var activeTokens = await _refreshTokens.GetActiveByUserIdAsync(userId, cancellationToken);
+        foreach (var token in activeTokens)
+        {
+            token.Revoke();
+        }
+
+        if (activeTokens.Count > 0)
+        {
+            _refreshTokens.UpdateRange(activeTokens);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
