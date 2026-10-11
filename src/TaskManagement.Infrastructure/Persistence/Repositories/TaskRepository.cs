@@ -22,9 +22,21 @@ public sealed class TaskRepository : ITaskRepository
     {
         return await _context.Tasks
             .Where(t => t.UserId == userId)
-            .OrderByDescending(t => t.CreatedAt)
+            .OrderByDescending(t => t.Priority)
+            .ThenByDescending(t => t.CreatedAt)
             .ToListAsync(cancellationToken);
     }
+
+    public Task<bool> ExistsForUserOnDateAsync(
+        Guid userId,
+        string normalizedTitle,
+        DateOnly createdDate,
+        CancellationToken cancellationToken = default) =>
+        _context.Tasks.AnyAsync(
+            t => t.UserId == userId
+                && t.NormalizedTitle == normalizedTitle
+                && t.CreatedDate == createdDate,
+            cancellationToken);
 
     public async Task AddAsync(TaskItem task, CancellationToken cancellationToken = default) =>
         await _context.Tasks.AddAsync(task, cancellationToken);

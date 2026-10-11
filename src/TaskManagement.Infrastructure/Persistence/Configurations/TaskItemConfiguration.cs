@@ -16,8 +16,12 @@ public sealed class TaskItemConfiguration : IEntityTypeConfiguration<TaskItem>
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(t => t.NormalizedTitle)
+            .IsRequired()
+            .HasMaxLength(200);
+
         builder.Property(t => t.Description)
-            .HasMaxLength(2000);
+            .HasMaxLength(1000);
 
         builder.Property(t => t.Status)
             .IsRequired()
@@ -31,6 +35,14 @@ public sealed class TaskItemConfiguration : IEntityTypeConfiguration<TaskItem>
         builder.Property(t => t.CreatedAt)
             .IsRequired();
 
-        builder.HasIndex(t => t.UserId);
+        builder.Property(t => t.CreatedDate)
+            .IsRequired()
+            .HasColumnType("date");
+
+        builder.Property(t => t.RowVersion)
+            .IsRowVersion();
+
+        builder.HasIndex(t => new { t.UserId, t.NormalizedTitle, t.CreatedDate })
+            .IsUnique();
     }
 }

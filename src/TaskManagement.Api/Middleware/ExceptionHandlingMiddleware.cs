@@ -32,6 +32,8 @@ public sealed class ExceptionHandlingMiddleware
         {
             NotFoundException => (StatusCodes.Status404NotFound, "Resource not found."),
             ConflictException => (StatusCodes.Status409Conflict, "A conflict occurred."),
+            ConcurrencyException => (StatusCodes.Status409Conflict, "A conflict occurred."),
+            DuplicateKeyException => (StatusCodes.Status409Conflict, "A conflict occurred."),
             ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden."),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.")
         };
