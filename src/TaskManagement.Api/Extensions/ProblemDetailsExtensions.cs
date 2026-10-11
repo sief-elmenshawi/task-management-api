@@ -12,7 +12,6 @@ public static class ProblemDetailsExtensions
         string? code = null)
     {
         response.StatusCode = statusCode;
-        response.ContentType = "application/problem+json";
 
         var problemDetails = new ProblemDetails
         {
@@ -27,6 +26,9 @@ public static class ProblemDetailsExtensions
             problemDetails.Extensions["code"] = code;
         }
 
-        return response.WriteAsJsonAsync(problemDetails);
+        return response.WriteAsJsonAsync(
+            problemDetails,
+            options: null,
+            contentType: "application/problem+json");
     }
 }
