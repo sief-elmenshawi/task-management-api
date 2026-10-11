@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+using TaskManagement.Api.Extensions;
 using TaskManagement.Domain.Exceptions;
 
 namespace TaskManagement.Api.Middleware;
@@ -28,38 +28,51 @@ public sealed class ExceptionHandlingMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        var (statusCode, title) = exception switch
+        if (context.Response.HasStarted)
         {
-            NotFoundException => (StatusCodes.Status404NotFound, "Resource not found."),
-            ConflictException => (StatusCodes.Status409Conflict, "A conflict occurred."),
-            ConcurrencyException => (StatusCodes.Status409Conflict, "A conflict occurred."),
-            DuplicateKeyException => (StatusCodes.Status409Conflict, "A conflict occurred."),
-            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden."),
-            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.")
-        };
+            _logger.LogWarning(
+                exception,
+                "The response has already started; the exception cannot be converted to ProblemDetails. {Path}",
+                context.Request.Path);
+
+            return;
+        }
+
+        var (statusCode, title, code) = MapException(exception);
 
         if (statusCode == StatusCodes.Status500InternalServerError)
         {
-            _logger.LogError(exception, "Unhandled exception occurred while processing {Path}", context.Request.Path);
+            _logger.LogError(
+                exception,
+                "Unhandled exception while processing {Method} {Path}.",
+                context.Request.Method,
+                context.Request.Path);
         }
         else
         {
-            _logger.LogWarning(exception, "Handled domain exception while processing {Path}", context.Request.Path);
+            _logger.LogWarning(
+                exception,
+                "Handled {ExceptionType} while processing {Method} {Path}.",
+                exception.GetType().Name,
+                context.Request.Method,
+                context.Request.Path);
         }
 
-        context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "application/problem+json";
+        var detail = statusCode == StatusCodes.Status500InternalServerError
+            ? "An unexpected error occurred."
+            : exception.Message;
 
-        var problemDetails = new ProblemDetails
-        {
-            Status = statusCode,
-            Title = title,
-            Type = $"https://httpstatuses.io/{statusCode}",
-            Detail = statusCode == StatusCodes.Status500InternalServerError
-                ? "An unexpected error occurred."
-                : exception.Message
-        };
-
-        await context.Response.WriteAsJsonAsync(problemDetails);
+        await context.Response.WriteProblemDetailsAsync(statusCode, title, detail, code);
     }
+
+    private static (int StatusCode, string Title, string Code) MapException(Exception exception) => exception switch
+    {
+        NotFoundException => (StatusCodes.Status404NotFound, "Resource not found.", "NotFound"),
+        ConflictException => (StatusCodes.Status409Conflict, "A conflict occurred.", "Conflict"),
+        ConcurrencyException => (StatusCodes.Status409Conflict, "A conflict occurred.", "ConcurrencyConflict"),
+        DuplicateKeyException => (StatusCodes.Status409Conflict, "A conflict occurred.", "DuplicateKey"),
+        ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden.", "Forbidden"),
+        DomainException => (StatusCodes.Status400BadRequest, "One or more validation errors occurred.", "DomainRuleViolation"),
+        _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", "InternalServerError")
+    };
 }

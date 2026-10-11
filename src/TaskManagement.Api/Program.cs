@@ -58,6 +58,24 @@ builder.Services
             RoleClaimType = "role",
             ClockSkew = TimeSpan.Zero
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+
+                await context.Response.WriteProblemDetailsAsync(
+                    StatusCodes.Status401Unauthorized,
+                    "Unauthorized.",
+                    "Authentication is required to access this resource.",
+                    "Unauthorized");
+            },
+            OnForbidden = context => context.Response.WriteProblemDetailsAsync(
+                StatusCodes.Status403Forbidden,
+                "Forbidden.",
+                "You do not have permission to access this resource.",
+                "Forbidden")
+        };
     });
 
 builder.Services.AddAuthorization();
