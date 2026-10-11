@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Tasks;
@@ -22,7 +23,7 @@ public class TaskProcessingWorkerTests
     private readonly ICacheService _cache = Substitute.For<ICacheService>();
     private readonly ChannelTaskQueue _queue = new();
 
-    private TestWorker CreateWorker(out ServiceProvider provider, AppDbContext? context = null)
+    private TestWorker CreateWorker(out ServiceProvider provider, AppDbContext? context = null, int concurrency = 1)
     {
         var services = new ServiceCollection();
         services.AddSingleton(_tasks);
@@ -36,7 +37,8 @@ public class TaskProcessingWorkerTests
         provider = services.BuildServiceProvider();
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
-        return new TestWorker(_queue, scopeFactory, NullLogger<TaskProcessingWorker>.Instance);
+        var options = Options.Create(new WorkerOptions { Concurrency = concurrency });
+        return new TestWorker(_queue, scopeFactory, options, NullLogger<TaskProcessingWorker>.Instance);
     }
 
     private static AppDbContext CreateContext() =>
@@ -143,13 +145,56 @@ public class TaskProcessingWorkerTests
         recovered.Should().BeEquivalentTo(new[] { pending[0].Id, pending[1].Id });
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ProcessesAllQueuedTasks_WithMultipleConsumers()
+    {
+        var worker = CreateWorker(out var provider, concurrency: 3);
+        using var _ = provider;
+
+        _tasks.GetPendingAsync(Arg.Any<CancellationToken>()).Returns(new List<TaskItem>());
+
+        var tasks = Enumerable.Range(0, 3)
+            .Select(index => new TaskItem($"Task {index}", null, TaskPriority.Low, Guid.NewGuid()))
+            .ToList();
+
+        foreach (var task in tasks)
+        {
+            _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(task);
+        }
+
+        await worker.StartAsync(CancellationToken.None);
+
+        foreach (var task in tasks)
+        {
+            await _queue.EnqueueAsync(TaskQueues.TaskProcessing, task.Id);
+        }
+
+        await WaitUntilAsync(
+            () => tasks.All(task => task.Status == TaskItemStatus.InProgress),
+            TimeSpan.FromSeconds(5));
+
+        await worker.StopAsync(CancellationToken.None);
+
+        tasks.Should().OnlyContain(task => task.Status == TaskItemStatus.InProgress);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+    }
+
     private sealed class TestWorker : TaskProcessingWorker
     {
         public TestWorker(
             ChannelTaskQueue queue,
             IServiceScopeFactory scopeFactory,
+            IOptions<WorkerOptions> options,
             Microsoft.Extensions.Logging.ILogger<TaskProcessingWorker> logger)
-            : base(queue, scopeFactory, logger)
+            : base(queue, scopeFactory, options, logger)
         {
         }
 

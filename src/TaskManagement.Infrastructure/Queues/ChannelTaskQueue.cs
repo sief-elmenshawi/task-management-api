@@ -25,7 +25,7 @@ public sealed class ChannelTaskQueue : ITaskQueue
     private Channel<Guid> GetChannel(string queueName) =>
         _channels.GetOrAdd(queueName, static _ => Channel.CreateBounded<Guid>(new BoundedChannelOptions(Capacity)
         {
-            SingleReader = true,
+            SingleReader = false,
             SingleWriter = false,
             FullMode = BoundedChannelFullMode.Wait
         }));

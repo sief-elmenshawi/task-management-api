@@ -56,6 +56,14 @@ public static class DependencyInjection
 
         services.AddSingleton<ChannelTaskQueue>();
         services.AddSingleton<ITaskQueue>(provider => provider.GetRequiredService<ChannelTaskQueue>());
+
+        services.AddOptions<WorkerOptions>()
+            .Bind(configuration.GetSection(WorkerOptions.SectionName))
+            .Validate(
+                options => options.Concurrency >= 1,
+                "Worker:Concurrency must be at least 1.")
+            .ValidateOnStart();
+
         services.AddHostedService<TaskProcessingWorker>();
 
         return services;

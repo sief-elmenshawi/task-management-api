@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Tasks;
 using TaskManagement.Domain.Enums;
@@ -19,45 +20,77 @@ public class TaskProcessingWorker : BackgroundService
 
     private readonly ChannelTaskQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IOptions<WorkerOptions> _options;
     private readonly ILogger<TaskProcessingWorker> _logger;
 
     public TaskProcessingWorker(
         ChannelTaskQueue queue,
         IServiceScopeFactory scopeFactory,
+        IOptions<WorkerOptions> options,
         ILogger<TaskProcessingWorker> logger)
     {
         _queue = queue;
         _scopeFactory = scopeFactory;
+        _options = options;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Task processing worker started.");
+        var concurrency = Math.Max(1, _options.Value.Concurrency);
 
-        var reader = _queue.Reader(TaskQueues.TaskProcessing);
+        _logger.LogInformation(
+            "Task processing worker started with {Concurrency} consumer(s).",
+            concurrency);
 
         var recovery = RecoverPendingTasksAsync(stoppingToken);
 
-        await foreach (var taskId in reader.ReadAllAsync(stoppingToken))
+        var consumers = new Task[concurrency];
+        for (var index = 0; index < concurrency; index++)
         {
-            try
-            {
-                await ProcessAsync(taskId, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception, "Failed to process task {TaskId}.", taskId);
-            }
+            consumers[index] = ConsumeAsync(stoppingToken);
+        }
+
+        try
+        {
+            await Task.WhenAll(consumers);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected during host shutdown.
         }
 
         await recovery;
 
         _logger.LogInformation("Task processing worker stopped.");
+    }
+
+    private async Task ConsumeAsync(CancellationToken stoppingToken)
+    {
+        var reader = _queue.Reader(TaskQueues.TaskProcessing);
+
+        try
+        {
+            await foreach (var taskId in reader.ReadAllAsync(stoppingToken))
+            {
+                try
+                {
+                    await ProcessAsync(taskId, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Failed to process task {TaskId}.", taskId);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected during host shutdown.
+        }
     }
 
     internal async Task RecoverPendingTasksAsync(CancellationToken cancellationToken)
