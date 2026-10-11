@@ -7,8 +7,12 @@ using TaskManagement.Application.Authentication.Dtos;
 
 namespace TaskManagement.Api.Controllers;
 
+/// <summary>
+/// Authentication endpoints: registration, login, token refresh/logout and the current user.
+/// </summary>
 [ApiController]
 [Route("api/auth")]
+[Tags("Auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -18,6 +22,10 @@ public sealed class AuthController : ControllerBase
         _authService = authService;
     }
 
+    /// <summary>
+    /// Registers a new user account.
+    /// </summary>
+    [AllowAnonymous]
     [HttpPost("register")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -30,6 +38,10 @@ public sealed class AuthController : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : result.ToProblemDetails();
     }
 
+    /// <summary>
+    /// Authenticates a user and returns an access token and a refresh token.
+    /// </summary>
+    [AllowAnonymous]
     [HttpPost("login")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -42,6 +54,10 @@ public sealed class AuthController : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : result.ToProblemDetails();
     }
 
+    /// <summary>
+    /// Exchanges a valid refresh token for a new access token and a rotated refresh token.
+    /// </summary>
+    [AllowAnonymous]
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -54,6 +70,9 @@ public sealed class AuthController : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : result.ToProblemDetails();
     }
 
+    /// <summary>
+    /// Revokes a refresh token, ending the associated session.
+    /// </summary>
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -66,10 +85,13 @@ public sealed class AuthController : ControllerBase
         return result.IsSuccess ? NoContent() : result.ToProblemDetails();
     }
 
+    /// <summary>
+    /// Returns the profile of the currently authenticated user.
+    /// </summary>
     [Authorize]
     [HttpGet("me")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {
