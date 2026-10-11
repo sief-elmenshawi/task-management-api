@@ -21,10 +21,10 @@ public sealed class Error
         ValidationErrors = validationErrors;
     }
 
-    public static Error Validation(string message, string code = "Validation") =>
+    public static Error Validation(string message, string code = "ValidationFailed") =>
         new(code, message, ErrorType.Validation, null);
 
-    public static Error Validation(IReadOnlyDictionary<string, string[]> errors, string code = "Validation")
+    public static Error Validation(IReadOnlyDictionary<string, string[]> errors, string code = "ValidationFailed")
     {
         var message = string.Join(" ", errors.Values.SelectMany(v => v));
         return new Error(code, message, ErrorType.Validation, errors);

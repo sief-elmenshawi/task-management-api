@@ -64,8 +64,9 @@ public sealed class TasksController : ControllerBase
     /// <summary>
     /// Returns a single task owned by the current user. Tasks owned by other users are reported as not found.
     /// </summary>
-    [HttpGet("{id:guid}")]
+    [HttpGet("{id}")]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
@@ -82,7 +83,7 @@ public sealed class TasksController : ControllerBase
     /// <summary>
     /// Updates the status of a task owned by the current user.
     /// </summary>
-    [HttpPatch("{id:guid}/status")]
+    [HttpPatch("{id}/status")]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
