@@ -1,8 +1,12 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TaskManagement.Application.Abstractions;
+using TaskManagement.Application.Authentication;
+using TaskManagement.Application.Authentication.Dtos;
 using TaskManagement.Application.Authentication.Validators;
+using TaskManagement.Application.Common;
 using TaskManagement.Application.Users;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Domain.Enums;
@@ -56,6 +60,45 @@ public class SoftDeleteQueryFilterTests
         await context.SaveChangesAsync();
 
         (await repository.GetPendingAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task LoginAsync_ReturnsUnauthorized_AfterTheUserIsSoftDeleted()
+    {
+        await using var context = CreateContext();
+
+        var user = new User("Jane", "jane@example.com", "hashed", UserRole.User);
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        passwordHasher.Verify("Password1", "hashed").Returns(true);
+
+        var jwtTokenService = Substitute.For<IJwtTokenService>();
+        jwtTokenService.CreateAccessToken(Arg.Any<User>())
+            .Returns(new AccessToken("access", DateTime.UtcNow.AddMinutes(15)));
+
+        var service = new AuthService(
+            new UserRepository(context),
+            new RefreshTokenRepository(context),
+            new UnitOfWork(context),
+            passwordHasher,
+            jwtTokenService,
+            new RegisterRequestValidator(),
+            new LoginRequestValidator(),
+            NullLogger<AuthService>.Instance);
+
+        var beforeDelete = await service.LoginAsync(new LoginRequest("jane@example.com", "Password1"));
+        beforeDelete.IsSuccess.Should().BeTrue();
+
+        user.MarkAsDeleted();
+        await context.SaveChangesAsync();
+
+        var afterDelete = await service.LoginAsync(new LoginRequest("jane@example.com", "Password1"));
+
+        afterDelete.IsFailure.Should().BeTrue();
+        afterDelete.Error.Type.Should().Be(ErrorType.Unauthorized);
+        afterDelete.Error.Code.Should().Be("InvalidCredentials");
     }
 
     [Fact]
