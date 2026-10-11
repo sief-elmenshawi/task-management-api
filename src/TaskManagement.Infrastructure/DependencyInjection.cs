@@ -10,6 +10,7 @@ using TaskManagement.Infrastructure.Caching;
 using TaskManagement.Infrastructure.Persistence;
 using TaskManagement.Infrastructure.Persistence.Repositories;
 using TaskManagement.Infrastructure.Queues;
+using TaskManagement.Infrastructure.Workers;
 
 namespace TaskManagement.Infrastructure;
 
@@ -55,6 +56,7 @@ public static class DependencyInjection
 
         services.AddSingleton<ChannelTaskQueue>();
         services.AddSingleton<ITaskQueue>(provider => provider.GetRequiredService<ChannelTaskQueue>());
+        services.AddHostedService<TaskProcessingWorker>();
 
         return services;
     }
