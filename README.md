@@ -46,6 +46,11 @@ Persistence detail: `Priority` is stored as an `int` (while `Status` is stored a
 - Swashbuckle (Swagger)
 - xUnit + NSubstitute + FluentAssertions for unit tests
 
+## Prerequisites
+
+- Docker Desktop (for the full-stack option)
+- .NET 10 SDK (only for running without Docker or running the tests)
+
 ## Quick start (Docker, whole stack)
 
 Everything - SQL Server, Redis and the API - runs from Compose.
@@ -66,6 +71,12 @@ on port `8080` inside the container; the host port comes from `API_PORT` in `.en
 
 `.env` must define `JWT_KEY`; Compose fails fast if it is missing. Copy `.env.example` to get all of
 the required values with working local defaults.
+
+## How to try it in Swagger
+
+1. Log in with the seeded admin account (`admin@example.com` / `Admin@123`).
+2. Copy the `accessToken` from the response.
+3. Click **Authorize**, paste the token (without the `Bearer ` prefix) and submit.
 
 ## Running the API locally (deps in Docker)
 
@@ -254,3 +265,8 @@ services.
   (`ConcurrencyConflict`).
 - Soft-deleted users are retained in the database for auditing; there is no hard-delete or restore
   endpoint.
+
+## AI tools used
+
+Used OpenCode to generate code from detailed prompts I wrote (architecture, requirements,
+conventions). I reviewed the code, ran the tests and verified the behavior manually.
