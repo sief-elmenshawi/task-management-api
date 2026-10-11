@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -6,7 +7,9 @@ using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Tasks;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Domain.Enums;
+using TaskManagement.Domain.Exceptions;
 using TaskManagement.Domain.Repositories;
+using TaskManagement.Infrastructure.Persistence;
 using TaskManagement.Infrastructure.Queues;
 using TaskManagement.Infrastructure.Workers;
 
@@ -19,17 +22,27 @@ public class TaskProcessingWorkerTests
     private readonly ICacheService _cache = Substitute.For<ICacheService>();
     private readonly ChannelTaskQueue _queue = new();
 
-    private TestWorker CreateWorker(out ServiceProvider provider)
+    private TestWorker CreateWorker(out ServiceProvider provider, AppDbContext? context = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(_tasks);
         services.AddSingleton(_unitOfWork);
         services.AddSingleton(_cache);
+        if (context is not null)
+        {
+            services.AddSingleton(context);
+        }
+
         provider = services.BuildServiceProvider();
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         return new TestWorker(_queue, scopeFactory, NullLogger<TaskProcessingWorker>.Instance);
     }
+
+    private static AppDbContext CreateContext() =>
+        new(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
 
     [Fact]
     public async Task ProcessAsync_MovesPendingTaskToInProgress_AndEvictsCache()
@@ -76,6 +89,33 @@ public class TaskProcessingWorkerTests
         await worker.ProcessAsync(Guid.NewGuid(), CancellationToken.None);
 
         await _unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ReloadsAndSkips_WhenSaveFailsWithConcurrencyException()
+    {
+        await using var context = CreateContext();
+
+        var owner = new User("Owner", "owner@example.com", "hash", UserRole.User);
+        var task = new TaskItem("Task", null, TaskPriority.Low, owner.Id);
+        context.Users.Add(owner);
+        context.Tasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var worker = CreateWorker(out var provider, context);
+        using var _ = provider;
+
+        _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(task);
+        _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<int>(
+                new ConcurrencyException("conflict", new Exception("rowversion"))));
+
+        var act = () => worker.ProcessAsync(task.Id, CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        task.Status.Should().Be(TaskItemStatus.Pending);
+        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await _cache.DidNotReceive().RemoveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
