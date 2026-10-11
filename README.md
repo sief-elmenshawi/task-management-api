@@ -3,7 +3,6 @@
 A simple, clean task management backend API built with ASP.NET Core following Onion Architecture.
 
 
-
 ## Architecture
 
 One solution, four projects under `src/` plus a unit test project under `tests/`. Dependencies point
