@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Local developer settings (local connection strings, machine-specific overrides)
+appsettings.Local.json
+
 # User-specific files
 *.rsuser
 *.suo
