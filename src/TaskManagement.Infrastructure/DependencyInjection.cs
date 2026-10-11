@@ -1,12 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Domain.Repositories;
 using TaskManagement.Infrastructure.Authentication;
+using TaskManagement.Infrastructure.Caching;
 using TaskManagement.Infrastructure.Persistence;
 using TaskManagement.Infrastructure.Persistence.Repositories;
+using TaskManagement.Infrastructure.Queues;
 
 namespace TaskManagement.Infrastructure;
 
@@ -43,6 +46,15 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
+
+        var redisConnectionString = configuration.GetConnectionString("Redis") ?? "localhost:6379";
+
+        services.AddSingleton<ICacheService>(provider => new RedisCacheService(
+            redisConnectionString,
+            provider.GetRequiredService<ILogger<RedisCacheService>>()));
+
+        services.AddSingleton<ChannelTaskQueue>();
+        services.AddSingleton<ITaskQueue>(provider => provider.GetRequiredService<ChannelTaskQueue>());
 
         return services;
     }
