@@ -31,6 +31,8 @@ public static class SwaggerExtensions
                 [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
             });
 
+            options.OperationFilter<AllowAnonymousOperationFilter>();
+
             var xmlFile = $"{typeof(SwaggerExtensions).Assembly.GetName().Name}.xml";
             var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
 

@@ -73,6 +73,7 @@ public sealed class AuthController : ControllerBase
     /// <summary>
     /// Revokes a refresh token, ending the associated session.
     /// </summary>
+    [AllowAnonymous]
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
