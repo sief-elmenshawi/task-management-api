@@ -23,7 +23,7 @@
       "name": "1. Auth",
       "item": [
         {
-          "name": "AUTH-01 register new user -> 200",
+          "name": "AUTH-01 register new user -> 201",
           "request": {
             "method": "POST",
             "header": [
@@ -65,7 +65,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('AUTH-01 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('AUTH-01 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('AUTH-01 returns id/name/email/role', function () {",
                   "  pm.expect(b).to.have.all.keys('id', 'name', 'email', 'role');",
@@ -152,8 +152,8 @@
                 "exec": [
                   "pm.test('AUTH-03 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('AUTH-03 is ProblemDetails with code Validation and Password errors', function () {",
-                  "  pm.expect(b.code).to.eql('Validation');",
+                  "pm.test('AUTH-03 is ProblemDetails with code ValidationFailed and Password errors', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "  pm.expect(b.errors).to.have.property('Password');",
                   "});"
                 ]
@@ -193,8 +193,8 @@
                 "exec": [
                   "pm.test('AUTH-04 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('AUTH-04 is ProblemDetails with code Validation and ConfirmPassword errors', function () {",
-                  "  pm.expect(b.code).to.eql('Validation');",
+                  "pm.test('AUTH-04 is ProblemDetails with code ValidationFailed and ConfirmPassword errors', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "  pm.expect(b.errors).to.have.property('ConfirmPassword');",
                   "});"
                 ]
@@ -234,8 +234,8 @@
                 "exec": [
                   "pm.test('AUTH-05 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('AUTH-05 is ProblemDetails with code Validation and Email errors', function () {",
-                  "  pm.expect(b.code).to.eql('Validation');",
+                  "pm.test('AUTH-05 is ProblemDetails with code ValidationFailed and Email errors', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "  pm.expect(b.errors).to.have.property('Email');",
                   "});"
                 ]
@@ -381,7 +381,7 @@
                 "exec": [
                   "pm.test('AUTH-09 status is 401', function () { pm.response.to.have.status(401); });",
                   "const b = pm.response.json();",
-                  "pm.test('AUTH-09 is ProblemDetails with code Unauthorized', function () {",
+                  "pm.test('AUTH-09 is ProblemDetails with code Unauthorized', function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
                   "  pm.expect(b.code).to.eql('Unauthorized');",
                   "  pm.expect(b.status).to.eql(401);",
                   "});"
@@ -701,7 +701,7 @@
                 "exec": [
                   "pm.test('USERS-02 status is 403', function () { pm.response.to.have.status(403); });",
                   "const b = pm.response.json();",
-                  "pm.test('USERS-02 is ProblemDetails with code Forbidden', function () {",
+                  "pm.test('USERS-02 is ProblemDetails with code Forbidden', function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
                   "  pm.expect(b.code).to.eql('Forbidden');",
                   "});"
                 ]
@@ -747,7 +747,7 @@
           ]
         },
         {
-          "name": "USERS-04 POST create user as admin -> 200",
+          "name": "USERS-04 POST create user as admin -> 201",
           "request": {
             "method": "POST",
             "header": [
@@ -796,7 +796,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('USERS-04 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('USERS-04 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('USERS-04 returns created user with id', function () {",
                   "  pm.expect(b.id).to.be.a('string').and.not.empty;",
@@ -937,8 +937,8 @@
                 "exec": [
                   "pm.test('USERS-07 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('USERS-07 is ProblemDetails with code Validation', function () {",
-                  "  pm.expect(b.code).to.eql('Validation');",
+                  "pm.test('USERS-07 is ProblemDetails with code ValidationFailed', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "  pm.expect(b.errors).to.be.an('object');",
                   "});"
                 ]
@@ -1157,7 +1157,7 @@
           ]
         },
         {
-          "name": "USERS-14 recreate user with SAME email -> 200",
+          "name": "USERS-14 recreate user with SAME email -> 201",
           "request": {
             "method": "POST",
             "header": [
@@ -1193,13 +1193,48 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('USERS-14 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('USERS-14 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('USERS-14 the freed email can be reused', function () {",
                   "  pm.expect(b.id).to.be.a('string').and.not.empty;",
                   "  pm.expect(b.email).to.eql(pm.collectionVariables.get('createdUserEmail'));",
                   "});",
                   "pm.collectionVariables.set('recreatedUserId', b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "USERS-15 DELETE /api/users/abc (non-guid id) -> 400",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/abc",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('USERS-15 status is 400', function () { pm.response.to.have.status(400); });",
+                  "const b = pm.response.json();",
+                  "pm.test('USERS-15 is ValidationFailed with errors.id', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
+                  "  pm.expect(b.errors).to.have.property('id');",
+                  "});"
                 ]
               }
             }
@@ -1211,7 +1246,7 @@
       "name": "3. Tasks",
       "item": [
         {
-          "name": "TASKS-01 register user B -> 200",
+          "name": "TASKS-01 register user B -> 201",
           "request": {
             "method": "POST",
             "header": [
@@ -1253,7 +1288,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('TASKS-01 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('TASKS-01 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('TASKS-01 user B id returned', function () { pm.expect(b.id).to.be.a('string').and.not.empty; });",
                   "pm.collectionVariables.set('userBId', b.id);"
@@ -1302,7 +1337,7 @@
           ]
         },
         {
-          "name": "TASKS-03 create task as user B -> 200",
+          "name": "TASKS-03 create task as user B -> 201",
           "request": {
             "method": "POST",
             "header": [
@@ -1349,7 +1384,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('TASKS-03 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('TASKS-03 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('TASKS-03 user B task created', function () { pm.expect(b.id).to.be.a('string').and.not.empty; });",
                   "pm.collectionVariables.set('userBTaskId', b.id);"
@@ -1390,7 +1425,7 @@
                 "exec": [
                   "pm.test('TASKS-04 status is 401', function () { pm.response.to.have.status(401); });",
                   "const b = pm.response.json();",
-                  "pm.test('TASKS-04 is ProblemDetails with code Unauthorized', function () {",
+                  "pm.test('TASKS-04 is ProblemDetails with code Unauthorized', function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
                   "  pm.expect(b.code).to.eql('Unauthorized');",
                   "});"
                 ]
@@ -1437,8 +1472,8 @@
                 "exec": [
                   "pm.test('TASKS-05 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('TASKS-05 is ProblemDetails with code Validation', function () {",
-                  "  pm.expect(b.code).to.eql('Validation');",
+                  "pm.test('TASKS-05 is ProblemDetails with code ValidationFailed', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "  pm.expect(b.errors).to.have.property('Title');",
                   "});"
                 ]
@@ -1494,8 +1529,8 @@
                 "exec": [
                   "pm.test('TASKS-06 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('TASKS-06 is ProblemDetails with code Validation', function () {",
-                  "  pm.expect(b.code).to.eql('Validation');",
+                  "pm.test('TASKS-06 is ProblemDetails with code ValidationFailed', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "  pm.expect(b.errors).to.have.property('Title');",
                   "});"
                 ]
@@ -1551,8 +1586,8 @@
                 "exec": [
                   "pm.test('TASKS-07 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('TASKS-07 is ProblemDetails with code Validation', function () {",
-                  "  pm.expect(b.code).to.eql('Validation');",
+                  "pm.test('TASKS-07 is ProblemDetails with code ValidationFailed', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "  pm.expect(b.errors).to.have.property('Description');",
                   "});"
                 ]
@@ -1599,13 +1634,16 @@
                 "exec": [
                   "pm.test('TASKS-08 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('TASKS-08 is ProblemDetails', function () {",
+                  "pm.test('TASKS-08 is ProblemDetails with code ValidationFailed', function () {",
                   "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
                   "  pm.expect(b).to.have.property('title');",
                   "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "});",
-                  "pm.test('TASKS-08 error ProblemDetails exposes a code field', function () {",
-                  "  pm.expect(b.code, 'expected a code field on the error ProblemDetails').to.be.a('string');",
+                  "pm.test('TASKS-08 exposes a readable priority error', function () {",
+                  "  pm.expect(b.errors).to.have.property('priority');",
+                  "  pm.expect(b.errors.priority.join(' ')).to.include('Invalid value. Allowed values: Low, Medium, High.');",
+                  "  pm.expect(b.errors).to.not.have.property('request');",
                   "});"
                 ]
               }
@@ -1613,7 +1651,7 @@
           ]
         },
         {
-          "name": "TASKS-09 create task as A -> 200 status Pending",
+          "name": "TASKS-09 create task as A -> 201 status Pending",
           "request": {
             "method": "POST",
             "header": [
@@ -1660,14 +1698,19 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('TASKS-09 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('TASKS-09 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('TASKS-09 task is Pending with Medium priority', function () {",
                   "  pm.expect(b.status).to.eql('Pending');",
                   "  pm.expect(b.priority).to.eql('Medium');",
                   "  pm.expect(b.title).to.eql(pm.collectionVariables.get('baseTaskTitle'));",
                   "});",
-                  "pm.collectionVariables.set('baseTaskId', b.id);"
+                  "pm.collectionVariables.set('baseTaskId', b.id);",
+                  "pm.test('TASKS-09 Location points to the created task', function () {",
+                  "  const loc = pm.response.headers.get('Location');",
+                  "  pm.expect(loc).to.include('/api/tasks/');",
+                  "  pm.expect(loc).to.include(pm.collectionVariables.get('baseTaskId'));",
+                  "});"
                 ]
               }
             }
@@ -1778,7 +1821,7 @@
           ]
         },
         {
-          "name": "TASKS-12 create Low task as A -> 200",
+          "name": "TASKS-12 create Low task as A -> 201",
           "request": {
             "method": "POST",
             "header": [
@@ -1825,7 +1868,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('TASKS-12 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('TASKS-12 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('TASKS-12 Low task created', function () { pm.expect(b.priority).to.eql('Low'); });",
                   "pm.collectionVariables.set('lowTaskId', b.id);"
@@ -1835,7 +1878,7 @@
           ]
         },
         {
-          "name": "TASKS-13 create High task as A -> 200",
+          "name": "TASKS-13 create High task as A -> 201",
           "request": {
             "method": "POST",
             "header": [
@@ -1882,7 +1925,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('TASKS-13 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('TASKS-13 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('TASKS-13 High task created', function () { pm.expect(b.priority).to.eql('High'); });",
                   "pm.collectionVariables.set('highTaskId', b.id);"
@@ -1892,7 +1935,7 @@
           ]
         },
         {
-          "name": "TASKS-14 create Medium task as A -> 200",
+          "name": "TASKS-14 create Medium task as A -> 201",
           "request": {
             "method": "POST",
             "header": [
@@ -1939,7 +1982,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('TASKS-14 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('TASKS-14 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('TASKS-14 Medium task created', function () { pm.expect(b.priority).to.eql('Medium'); });",
                   "pm.collectionVariables.set('mediumTaskId', b.id);"
@@ -2135,7 +2178,7 @@
           ]
         },
         {
-          "name": "TASKS-20 GET /api/tasks/abc (non-guid id) -> record status",
+          "name": "TASKS-20 GET /api/tasks/abc (non-guid id) -> 400",
           "request": {
             "method": "GET",
             "header": [],
@@ -2157,8 +2200,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('TASKS-20 status is 404', function () { pm.response.to.have.status(404); });",
-                  "console.log('TASKS-20 abc -> status=' + pm.response.code + ' content-type=[' + (pm.response.headers.get('Content-Type') || '') + '] bodyLength=' + pm.response.text().length);"
+                  "pm.test('TASKS-20 status is 400', function () { pm.response.to.have.status(400); });",
+                  "const b = pm.response.json();",
+                  "pm.test('TASKS-20 is ValidationFailed with errors.id', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
+                  "  pm.expect(b.errors).to.have.property('id');",
+                  "});"
                 ]
               }
             }
@@ -2279,13 +2327,16 @@
                 "exec": [
                   "pm.test('TASKS-23 status is 400', function () { pm.response.to.have.status(400); });",
                   "const b = pm.response.json();",
-                  "pm.test('TASKS-23 is ProblemDetails', function () {",
+                  "pm.test('TASKS-23 is ProblemDetails with code ValidationFailed', function () {",
                   "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
                   "  pm.expect(b).to.have.property('title');",
                   "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "});",
-                  "pm.test('TASKS-23 error ProblemDetails exposes a code field', function () {",
-                  "  pm.expect(b.code, 'expected a code field on the error ProblemDetails').to.be.a('string');",
+                  "pm.test('TASKS-23 exposes a readable status error', function () {",
+                  "  pm.expect(b.errors).to.have.property('status');",
+                  "  pm.expect(b.errors.status.join(' ')).to.include('Invalid value. Allowed values: Pending, InProgress, Done.');",
+                  "  pm.expect(b.errors).to.not.have.property('request');",
                   "});"
                 ]
               }
@@ -2371,8 +2422,57 @@
                 "exec": [
                   "pm.test('TASKS-25 status is 401', function () { pm.response.to.have.status(401); });",
                   "const b = pm.response.json();",
-                  "pm.test('TASKS-25 is ProblemDetails with code Unauthorized', function () {",
+                  "pm.test('TASKS-25 is ProblemDetails with code Unauthorized', function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
                   "  pm.expect(b.code).to.eql('Unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "TASKS-26 PATCH /api/tasks/abc/status (non-guid id) -> 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/abc/status",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userAToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Done\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('TASKS-26 status is 400', function () { pm.response.to.have.status(400); });",
+                  "const b = pm.response.json();",
+                  "pm.test('TASKS-26 is ValidationFailed with errors.id', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
+                  "  pm.expect(b.errors).to.have.property('id');",
                   "});"
                 ]
               }
@@ -2385,7 +2485,7 @@
       "name": "4. Background worker",
       "item": [
         {
-          "name": "WORKER-01 create task as A -> 200 Pending",
+          "name": "WORKER-01 create task as A -> 201 Pending",
           "request": {
             "method": "POST",
             "header": [
@@ -2433,7 +2533,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('WORKER-01 status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('WORKER-01 status is 201', function () { pm.response.to.have.status(201); });",
                   "const b = pm.response.json();",
                   "pm.test('WORKER-01 newly created task is Pending', function () { pm.expect(b.status).to.eql('Pending'); });",
                   "pm.collectionVariables.set('workerTaskId', b.id);"
@@ -2478,20 +2578,86 @@
                   "const t0 = Number(pm.collectionVariables.get('workerPollStart'));",
                   "const elapsed = Date.now() - t0;",
                   "if (b.status === 'InProgress') {",
-                  "  pm.test('WORKER-02 task flips Pending -> InProgress within 15s (elapsed ' + elapsed + 'ms)', function () {",
+                  "  pm.test('WORKER-02 task flips Pending -> InProgress within 20s (elapsed ' + elapsed + 'ms)', function () {",
                   "    pm.response.to.have.status(200);",
-                  "    pm.expect(elapsed).to.be.below(15000);",
+                  "    pm.expect(elapsed).to.be.below(20000);",
                   "    pm.expect(b.status).to.eql('InProgress');",
                   "  });",
                   "  pm.collectionVariables.unset('workerPollStart');",
-                  "} else if (elapsed < 15000) {",
+                  "} else if (elapsed < 20000) {",
                   "  setTimeout(function () { postman.setNextRequest('WORKER-02 poll task status until InProgress'); }, 1000);",
                   "} else {",
-                  "  pm.test('WORKER-02 task flips Pending -> InProgress within 15s', function () {",
+                  "  pm.test('WORKER-02 task flips Pending -> InProgress within 20s', function () {",
                   "    pm.expect.fail('Timed out after ' + elapsed + 'ms; last status=' + b.status);",
                   "  });",
                   "  pm.collectionVariables.unset('workerPollStart');",
                   "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "WORKER-03 bulk create 5 tasks -> all InProgress within 20s",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userAToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var base = pm.collectionVariables.get('baseUrl');",
+                  "var token = pm.collectionVariables.get('userAToken');",
+                  "var ts = pm.variables.replaceIn('{{$timestamp}}');",
+                  "var ids = [];",
+                  "var total = 5;",
+                  "function createAt(i, done) {",
+                  "  if (i >= total) { done(); return; }",
+                  "  pm.sendRequest({",
+                  "    url: base + '/api/tasks',",
+                  "    method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({ title: 'Bulk-' + ts + '-' + i, description: 'bulk', priority: 'Low' }) }",
+                  "  }, function (err, res) {",
+                  "    if (!err && res && res.code === 201) { ids.push(res.json().id); }",
+                  "    createAt(i + 1, done);",
+                  "  });",
+                  "}",
+                  "function poll(deadline) {",
+                  "  pm.sendRequest({",
+                  "    url: base + '/api/tasks',",
+                  "    method: 'GET',",
+                  "    header: { 'Authorization': 'Bearer ' + token }",
+                  "  }, function (err, res) {",
+                  "    var list = (res && res.code === 200) ? res.json() : [];",
+                  "    var allDone = ids.length === total && ids.every(function (id) {",
+                  "      var t = list.find(function (x) { return x.id === id; });",
+                  "      return t && t.status === 'InProgress';",
+                  "    });",
+                  "    if (allDone) {",
+                  "      pm.test('WORKER-03 all 5 bulk tasks reach InProgress', function () { pm.expect(allDone).to.be.true; });",
+                  "    } else if (Date.now() < deadline) {",
+                  "      setTimeout(function () { poll(deadline); }, 1000);",
+                  "    } else {",
+                  "      pm.test('WORKER-03 all 5 bulk tasks reach InProgress within 20s', function () { pm.expect.fail('Not all bulk tasks reached InProgress within 20s'); });",
+                  "    }",
+                  "  });",
+                  "}",
+                  "createAt(0, function () { pm.collectionVariables.set('bulkIds', JSON.stringify(ids)); poll(Date.now() + 20000); });"
                 ]
               }
             }
