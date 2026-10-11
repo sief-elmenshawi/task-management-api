@@ -11,8 +11,9 @@ public static class SwaggerExtensions
         {
             options.SwaggerDoc("v1", new OpenApiInfo
             {
-                Title = "TaskManagement API",
-                Version = "v1"
+                Title = "Task Management API",
+                Version = "v1",
+                Description = "Backend API for managing tasks and users, secured with JWT bearer tokens."
             });
 
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -22,13 +23,21 @@ public static class SwaggerExtensions
                 Scheme = "bearer",
                 BearerFormat = "JWT",
                 In = ParameterLocation.Header,
-                Description = "Enter the JWT access token obtained from /api/auth/login."
+                Description = "Paste only the access token from /api/auth/login (without the \"Bearer \" prefix)."
             });
 
             options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
             {
                 [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
             });
+
+            var xmlFile = $"{typeof(SwaggerExtensions).Assembly.GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+
+            if (File.Exists(xmlPath))
+            {
+                options.IncludeXmlComments(xmlPath);
+            }
         });
 
         return services;
