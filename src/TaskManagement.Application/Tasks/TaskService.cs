@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Common;
 using TaskManagement.Application.Tasks.Dtos;
@@ -18,6 +19,7 @@ public sealed class TaskService : ITaskService
     private readonly ITaskQueue _taskQueue;
     private readonly IValidator<CreateTaskRequest> _createValidator;
     private readonly IValidator<UpdateTaskStatusRequest> _statusValidator;
+    private readonly ILogger<TaskService> _logger;
 
     public TaskService(
         ITaskRepository tasks,
@@ -25,7 +27,8 @@ public sealed class TaskService : ITaskService
         ICacheService cache,
         ITaskQueue taskQueue,
         IValidator<CreateTaskRequest> createValidator,
-        IValidator<UpdateTaskStatusRequest> statusValidator)
+        IValidator<UpdateTaskStatusRequest> statusValidator,
+        ILogger<TaskService> logger)
     {
         _tasks = tasks;
         _unitOfWork = unitOfWork;
@@ -33,6 +36,7 @@ public sealed class TaskService : ITaskService
         _taskQueue = taskQueue;
         _createValidator = createValidator;
         _statusValidator = statusValidator;
+        _logger = logger;
     }
 
     public async Task<Result<TaskResponse>> CreateAsync(
@@ -51,6 +55,11 @@ public sealed class TaskService : ITaskService
 
         if (await _tasks.ExistsForUserOnDateAsync(userId, normalizedTitle, createdDate, cancellationToken))
         {
+            _logger.LogInformation(
+                "Rejected duplicate task title for user {UserId} on {CreatedDate}.",
+                userId,
+                createdDate);
+
             return TaskTitleConflict();
         }
 
@@ -64,10 +73,17 @@ public sealed class TaskService : ITaskService
         }
         catch (DuplicateKeyException)
         {
+            _logger.LogInformation(
+                "Rejected duplicate task title for user {UserId} on {CreatedDate} (database constraint).",
+                userId,
+                createdDate);
+
             return TaskTitleConflict();
         }
 
         await _taskQueue.EnqueueAsync(TaskQueues.TaskProcessing, task.Id, cancellationToken);
+
+        _logger.LogInformation("Created task {TaskId} for user {UserId}.", task.Id, userId);
 
         return Result.Success(ToResponse(task));
     }
@@ -122,6 +138,8 @@ public sealed class TaskService : ITaskService
         var task = await _tasks.GetByIdAsync(taskId, cancellationToken);
         if (task is null || task.UserId != userId)
         {
+            _logger.LogDebug("Task {TaskId} was not found for user {UserId}.", taskId, userId);
+
             return Result.Failure<TaskResponse>(Error.NotFound("Task not found.", "TaskNotFound"));
         }
 
@@ -133,11 +151,19 @@ public sealed class TaskService : ITaskService
         }
         catch (ConcurrencyException)
         {
+            _logger.LogWarning("Concurrency conflict while updating task {TaskId}.", taskId);
+
             return Result.Failure<TaskResponse>(
                 Error.Conflict("The task was modified by another operation. Reload and try again.", "ConcurrencyConflict"));
         }
 
         await _cache.RemoveAsync(TaskCacheKeys.ForTask(userId, taskId), cancellationToken);
+
+        _logger.LogInformation(
+            "Updated task {TaskId} status to {Status} for user {UserId}.",
+            taskId,
+            request.Status,
+            userId);
 
         return Result.Success(ToResponse(task));
     }

@@ -96,6 +96,7 @@ builder.Services.AddSwaggerDocs();
 
 var app = builder.Build();
 
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 var swaggerEnabled = builder.Configuration.GetValue("Swagger:Enabled", true);

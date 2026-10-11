@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Authentication.Dtos;
 using TaskManagement.Application.Common;
@@ -21,6 +22,7 @@ public sealed class AuthService : IAuthService
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IValidator<RegisterRequest> _registerValidator;
     private readonly IValidator<LoginRequest> _loginValidator;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUserRepository users,
@@ -29,7 +31,8 @@ public sealed class AuthService : IAuthService
         IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
         IValidator<RegisterRequest> registerValidator,
-        IValidator<LoginRequest> loginValidator)
+        IValidator<LoginRequest> loginValidator,
+        ILogger<AuthService> logger)
     {
         _users = users;
         _refreshTokens = refreshTokens;
@@ -38,6 +41,7 @@ public sealed class AuthService : IAuthService
         _jwtTokenService = jwtTokenService;
         _registerValidator = registerValidator;
         _loginValidator = loginValidator;
+        _logger = logger;
     }
 
     public async Task<Result<UserResponse>> RegisterAsync(
@@ -64,6 +68,8 @@ public sealed class AuthService : IAuthService
         await _users.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        _logger.LogInformation("Registered user {UserId}.", user.Id);
+
         return Result.Success(ToUserResponse(user));
     }
 
@@ -82,9 +88,13 @@ public sealed class AuthService : IAuthService
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
         {
+            _logger.LogWarning("Login failed for {Email}.", email);
+
             return Result.Failure<AuthResponse>(
                 Error.Unauthorized("Invalid email or password.", "InvalidCredentials"));
         }
+
+        _logger.LogInformation("User {UserId} logged in.", user.Id);
 
         var response = await IssueTokensAsync(user, cancellationToken);
         return Result.Success(response);
@@ -105,6 +115,8 @@ public sealed class AuthService : IAuthService
 
         if (storedToken is null)
         {
+            _logger.LogDebug("Refresh token was not recognized.");
+
             return Result.Failure<AuthResponse>(
                 Error.Unauthorized("Invalid refresh token.", "InvalidRefreshToken"));
         }
@@ -114,6 +126,10 @@ public sealed class AuthService : IAuthService
             await RevokeAllActiveTokensAsync(storedToken.UserId, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+            _logger.LogWarning(
+                "Refresh token reuse detected for user {UserId}; revoking all active sessions.",
+                storedToken.UserId);
+
             return Result.Failure<AuthResponse>(
                 Error.Unauthorized(
                     "Refresh token has been revoked. All active sessions have been terminated.",
@@ -122,6 +138,8 @@ public sealed class AuthService : IAuthService
 
         if (storedToken.IsExpired)
         {
+            _logger.LogDebug("Expired refresh token presented for user {UserId}.", storedToken.UserId);
+
             return Result.Failure<AuthResponse>(
                 Error.Unauthorized("Refresh token has expired.", "RefreshTokenExpired"));
         }
@@ -129,6 +147,8 @@ public sealed class AuthService : IAuthService
         var user = await _users.GetByIdAsync(storedToken.UserId, cancellationToken);
         if (user is null)
         {
+            _logger.LogDebug("Refresh token belongs to an unknown user {UserId}.", storedToken.UserId);
+
             return Result.Failure<AuthResponse>(
                 Error.Unauthorized("Invalid refresh token.", "InvalidRefreshToken"));
         }
@@ -148,6 +168,8 @@ public sealed class AuthService : IAuthService
         await _refreshTokens.AddAsync(refreshToken, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        _logger.LogInformation("Rotated refresh token for user {UserId}.", user.Id);
+
         return Result.Success(new AuthResponse(accessToken.Token, newRefreshTokenValue, accessToken.ExpiresAt));
     }
 
@@ -166,6 +188,8 @@ public sealed class AuthService : IAuthService
 
         if (storedToken is null)
         {
+            _logger.LogDebug("Logout attempted with an unrecognized refresh token.");
+
             return Result.Failure(
                 Error.Unauthorized("Invalid refresh token.", "InvalidRefreshToken"));
         }
@@ -175,6 +199,8 @@ public sealed class AuthService : IAuthService
             storedToken.Revoke();
             _refreshTokens.Update(storedToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Revoked refresh token for user {UserId}.", storedToken.UserId);
         }
 
         return Result.Success();
