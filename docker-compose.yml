@@ -32,6 +32,31 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: .
+      dockerfile: src/TaskManagement.Api/Dockerfile
+    container_name: taskmanagement-api
+    restart: unless-stopped
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=TaskManagement;User Id=sa;Password=${SA_PASSWORD:-TaskManager@2026};TrustServerCertificate=True;MultipleActiveResultSets=True"
+      ConnectionStrings__Redis: "redis:6379"
+      JwtSettings__Key: "${JWT_KEY:?JWT_KEY must be set in .env - see .env.example}"
+      JwtSettings__Issuer: "TaskManagement"
+      JwtSettings__Audience: "TaskManagementClients"
+      JwtSettings__ExpiryMinutes: "15"
+      Cors__AllowedOrigins__0: "${CORS_ORIGIN:-http://localhost:5173}"
+      Swagger__Enabled: "true"
+    ports:
+      - "${API_PORT:-8080}:8080"
+
 volumes:
   sqlserver_data:
   redis_data:
