@@ -116,8 +116,11 @@ Open Swagger UI at `https://localhost:<port>/swagger`.
   `appsettings.Local.json`. The `ConnectionStrings__DefaultConnection`
   environment variable overrides all JSON files, and must be set to the same
   password if `SA_PASSWORD` in `.env` is changed.
-- `JwtSettings` (key, issuer, audience, expiry) are read from configuration. A
-  development-only key lives in `appsettings.Development.json`.
+- `JwtSettings` (key, issuer, audience, expiry) are read from configuration. The
+  `JwtSettings:Key` in `appsettings.Development.json` is a **development-only**
+  signing key (committed so the project runs out of the box). It must never be
+  used in production: provide the key through the `JwtSettings__Key` environment
+  variable (or a secret store) instead.
 - CORS allowed origins come from `Cors:AllowedOrigins` (default
   `http://localhost:5173`).
 
