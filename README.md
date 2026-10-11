@@ -140,6 +140,9 @@ files.
   the first entry from `CORS_ORIGIN`.
 - `Swagger:Enabled` - serves Swagger UI and the `/` → `/swagger` redirect when `true` (default). The
   Compose service sets it to `true`.
+- `Worker:Concurrency` - number of background-worker consumers that process queued tasks in parallel
+  (default `3`, minimum `1`; validated at startup). The Compose service sets it from
+  `WORKER_CONCURRENCY`, so `WORKER_CONCURRENCY=6` in `.env` runs six parallel consumers.
 
 ## Endpoints
 
@@ -150,7 +153,7 @@ Enum values (`status`, `priority`, `role`) are accepted and returned as names
 
 | Method | Route               | Auth | Description                              |
 | ------ | ------------------- | ---- | ---------------------------------------- |
-| POST   | `/api/auth/register`| -    | Register a new user                      |
+| POST   | `/api/auth/register`| -    | Register a new user (201 Created)        |
 | POST   | `/api/auth/login`   | -    | Login, returns access + refresh token    |
 | POST   | `/api/auth/refresh` | -    | Rotate refresh token (reuse detection)   |
 | POST   | `/api/auth/logout`  | -    | Revoke a refresh token                   |
@@ -161,7 +164,7 @@ Enum values (`status`, `priority`, `role`) are accepted and returned as names
 | Method | Route            | Auth  | Description                                             |
 | ------ | ---------------- | ----- | ------------------------------------------------------- |
 | GET    | `/api/users`     | Admin | List active users (id, name, email, role, createdAt)    |
-| POST   | `/api/users`     | Admin | Create a user (409 if the email is already taken)       |
+| POST   | `/api/users`     | Admin | Create a user (201 Created; 409 if the email is already taken)  |
 | DELETE | `/api/users/{id}`| Admin | Delete a user (404 if missing, 403 when deleting self)  |
 
 Users are soft-deleted: `DELETE` marks the account as deleted, revokes all of its active refresh
@@ -173,7 +176,7 @@ users only.
 
 | Method | Route                      | Auth | Description                                                        |
 | ------ | -------------------------- | ---- | ----------------------------------------------------------------- |
-| POST   | `/api/tasks`               | User | Create a task for the caller (409 on duplicate title that day)    |
+| POST   | `/api/tasks`               | User | Create a task for the caller (201 Created + Location; 409 on duplicate title that day) |
 | GET    | `/api/tasks`               | User | List the caller's tasks (priority high→low, then newest first)    |
 | GET    | `/api/tasks/{id}`          | User | Get one of the caller's tasks (404 if not owned or missing)       |
 | PATCH  | `/api/tasks/{id}/status`   | User | Update status of the caller's task (409 on concurrent update)     |
@@ -192,11 +195,12 @@ If Redis is unreachable, a warning is logged and every read falls back to SQL Se
 ## Background task processing
 
 Creating a task writes its id to an in-process `Channel<Guid>` (through `ITaskQueue`). A
-`BackgroundService` (`TaskProcessingWorker`) reads the channel with a new DI scope per job, waits
-3-5 seconds, and moves the task from `Pending` to `InProgress`, but only when it is still `Pending`.
-It then evicts the task's cache entry. If the task was changed concurrently
+`BackgroundService` (`TaskProcessingWorker`) runs `Worker:Concurrency` consumers in parallel (default
+`3`, see [Configuration](#configuration)). Each consumer reads the channel with a new DI scope per
+job, waits 3-5 seconds, and moves the task from `Pending` to `InProgress`, but only when it is still
+`Pending`. It then evicts the task's cache entry. If the task was changed concurrently
 (`DbUpdateConcurrencyException`) it is reloaded and skipped. Each job runs in a try/catch so a single
-failure never stops the worker, and the loop honors the host's shutdown token.
+failure never stops a consumer, and each loop honors the host's shutdown token.
 
 **Startup recovery.** When the worker starts it also queries the database for tasks still in
 `Pending` and re-enqueues them, so work that was queued but never processed (for example because the
@@ -227,6 +231,12 @@ All errors are returned as RFC 7807 ProblemDetails.
 - Application services return `Result<T>` with error types (Validation, Unauthorized, Forbidden,
   NotFound, Conflict). The API maps these to the correct status codes (400, 401, 403, 404, 409) and
   includes a stable `code` extension plus, for validation failures, an `errors` dictionary.
+- Validation failures share one shape with `code: ValidationFailed`: FluentValidation errors raised by
+  the application **and** model-binding errors from ASP.NET Core (malformed JSON, an unknown enum
+  value for `priority`/`status`, a non-GUID `id`). Binding errors are reshaped by
+  `InvalidModelStateResponseFactory` into the same ProblemDetails with a human-readable message per
+  field (for example `priority` → "Invalid value. Allowed values: Low, Medium, High.") instead of the
+  raw JSON-conversion text.
 - Missing or invalid credentials on protected endpoints return `401` as ProblemDetails, and a valid
   token without the required role returns `403` as ProblemDetails (JWT bearer challenge/forbidden
   handlers) - never an empty body.
