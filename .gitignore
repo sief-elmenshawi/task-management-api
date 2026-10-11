@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Postman / Newman generated reports
+/postman/results/
