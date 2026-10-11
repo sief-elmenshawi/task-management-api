@@ -60,7 +60,7 @@ public class TaskProcessingWorker : BackgroundService
         _logger.LogInformation("Task processing worker stopped.");
     }
 
-    private async Task RecoverPendingTasksAsync(CancellationToken cancellationToken)
+    internal async Task RecoverPendingTasksAsync(CancellationToken cancellationToken)
     {
         try
         {
