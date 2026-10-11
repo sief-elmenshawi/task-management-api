@@ -58,22 +58,36 @@ read from the `SA_PASSWORD` environment variable, defaulting to
 cp .env.example .env
 ```
 
-The default connection string in `appsettings.json` targets this container.
+The default connection string in `appsettings.json` targets this container. If
+you change `SA_PASSWORD` in `.env`, set the same password for the API through
+the `ConnectionStrings__DefaultConnection` environment variable (the Docker
+default in `appsettings.json` uses `TaskManager@2026`):
+
+```bash
+ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=TaskManagement;User Id=sa;Password=<your-password>;TrustServerCertificate=True"
+```
 
 **Option B - Existing local SQL Server**
 
-Set `ConnectionStrings:DefaultConnection` in `appsettings.Development.json`. The
-default there uses Windows authentication against the local default instance:
+`appsettings.json` ships a connection string for the Docker SQL Server. To use a
+local SQL Server instead, copy the committed example to `appsettings.Local.json`
+and adjust it if needed:
+
+```bash
+cp src/TaskManagement.Api/appsettings.Local.example.json src/TaskManagement.Api/appsettings.Local.json
+```
+
+The example uses Windows authentication against the local default instance:
 
 ```
 Server=.;Database=TaskManagement;Trusted_Connection=true;TrustServerCertificate=true
 ```
 
-`appsettings.Development.json` is layered on top of `appsettings.json`, so when
-the environment is `Development` (the default for `dotnet run` and for the
-design-time `dotnet ef` factory) the local instance is used instead of Docker.
-The connection can also come from the `ConnectionStrings__DefaultConnection`
-environment variable.
+`appsettings.Local.json` is git-ignored and layered over `appsettings.json` and
+`appsettings.{Environment}.json` (but under environment variables), so it is used
+by both `dotnet run` and the design-time `dotnet ef` factory. The connection can
+also be provided through the `ConnectionStrings__DefaultConnection` environment
+variable, which takes precedence over the JSON files.
 
 ### 2. Run the API
 
@@ -96,9 +110,12 @@ Open Swagger UI at `https://localhost:<port>/swagger`.
 
 ## Configuration
 
-- `ConnectionStrings:DefaultConnection` - SQL Server connection string. Docker
-  default lives in `appsettings.json`; local override in
-  `appsettings.Development.json`.
+- `ConnectionStrings:DefaultConnection` - SQL Server connection string. The
+  default in `appsettings.json` targets the Docker SQL Server; a local SQL Server
+  is configured by copying `appsettings.Local.example.json` to
+  `appsettings.Local.json`. The `ConnectionStrings__DefaultConnection`
+  environment variable overrides all JSON files, and must be set to the same
+  password if `SA_PASSWORD` in `.env` is changed.
 - `JwtSettings` (key, issuer, audience, expiry) are read from configuration. A
   development-only key lives in `appsettings.Development.json`.
 - CORS allowed origins come from `Cors:AllowedOrigins` (default
