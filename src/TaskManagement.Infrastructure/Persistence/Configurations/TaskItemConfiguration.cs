@@ -44,5 +44,7 @@ public sealed class TaskItemConfiguration : IEntityTypeConfiguration<TaskItem>
 
         builder.HasIndex(t => new { t.UserId, t.NormalizedTitle, t.CreatedDate })
             .IsUnique();
+
+        builder.HasQueryFilter(t => !t.User.IsDeleted);
     }
 }

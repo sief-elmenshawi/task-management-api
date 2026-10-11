@@ -162,6 +162,20 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task RefreshAsync_ReturnsUnauthorized_WhenUserNoLongerExists()
+    {
+        var stored = new RefreshToken(Guid.NewGuid(), "hash", DateTime.UtcNow.AddDays(1));
+        _refreshTokens.GetByTokenHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(stored);
+        _users.GetByIdAsync(stored.UserId, Arg.Any<CancellationToken>()).Returns((User?)null);
+
+        var result = await CreateSut().RefreshAsync(new RefreshTokenRequest("raw-refresh-token"));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("InvalidRefreshToken");
+        await _refreshTokens.DidNotReceive().AddAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task LogoutAsync_RevokesToken_WhenActive()
     {
         var stored = new RefreshToken(Guid.NewGuid(), "hash", DateTime.UtcNow.AddDays(1));
