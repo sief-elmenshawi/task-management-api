@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Configuration.Json;
 using Microsoft.IdentityModel.Tokens;
 using TaskManagement.Api.Extensions;
 using TaskManagement.Api.Middleware;
@@ -10,6 +11,24 @@ using TaskManagement.Infrastructure.Authentication;
 using TaskManagement.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var configurationSources = ((IConfigurationBuilder)builder.Configuration).Sources;
+var environmentSettingsFile = $"appsettings.{builder.Environment.EnvironmentName}.json";
+var environmentSettingsIndex = configurationSources
+    .Select((source, index) => (source, index))
+    .Where(item => item.source is FileConfigurationSource file
+        && string.Equals(file.Path, environmentSettingsFile, StringComparison.OrdinalIgnoreCase))
+    .Select(item => item.index)
+    .DefaultIfEmpty(configurationSources.Count - 1)
+    .Max();
+
+configurationSources.Insert(environmentSettingsIndex + 1, new JsonConfigurationSource
+{
+    FileProvider = builder.Environment.ContentRootFileProvider,
+    Path = "appsettings.Local.json",
+    Optional = true,
+    ReloadOnChange = true
+});
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

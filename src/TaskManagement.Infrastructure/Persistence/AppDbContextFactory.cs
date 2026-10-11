@@ -19,13 +19,14 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
             .SetBasePath(ResolveContentRoot())
             .AddJsonFile("appsettings.json", optional: true)
             .AddJsonFile($"appsettings.{environment}.json", optional: true)
+            .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
 
         var connectionString = configuration.GetConnectionString(ConnectionStringName)
             ?? throw new InvalidOperationException(
                 $"Connection string '{ConnectionStringName}' was not found. Configure it in " +
-                $"appsettings.json, appsettings.{environment}.json, or the " +
+                $"appsettings.json, appsettings.{environment}.json, appsettings.Local.json, or the " +
                 $"ConnectionStrings__{ConnectionStringName} environment variable.");
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
