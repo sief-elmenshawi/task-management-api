@@ -1,0 +1,246 @@
+using System.Security.Cryptography;
+using System.Text;
+using FluentValidation;
+using TaskManagement.Application.Abstractions;
+using TaskManagement.Application.Authentication.Dtos;
+using TaskManagement.Application.Common;
+using TaskManagement.Domain.Entities;
+using TaskManagement.Domain.Enums;
+using TaskManagement.Domain.Repositories;
+
+namespace TaskManagement.Application.Authentication;
+
+public sealed class AuthService : IAuthService
+{
+    private const int RefreshTokenExpiryDays = 7;
+
+    private readonly IUserRepository _users;
+    private readonly IRefreshTokenRepository _refreshTokens;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IPasswordHasher _passwordHasher;
+    private readonly IJwtTokenService _jwtTokenService;
+    private readonly IValidator<RegisterRequest> _registerValidator;
+    private readonly IValidator<LoginRequest> _loginValidator;
+
+    public AuthService(
+        IUserRepository users,
+        IRefreshTokenRepository refreshTokens,
+        IUnitOfWork unitOfWork,
+        IPasswordHasher passwordHasher,
+        IJwtTokenService jwtTokenService,
+        IValidator<RegisterRequest> registerValidator,
+        IValidator<LoginRequest> loginValidator)
+    {
+        _users = users;
+        _refreshTokens = refreshTokens;
+        _unitOfWork = unitOfWork;
+        _passwordHasher = passwordHasher;
+        _jwtTokenService = jwtTokenService;
+        _registerValidator = registerValidator;
+        _loginValidator = loginValidator;
+    }
+
+    public async Task<Result<UserResponse>> RegisterAsync(
+        RegisterRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = await _registerValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return Result.Failure<UserResponse>(ToValidationError(validation));
+        }
+
+        var email = NormalizeEmail(request.Email);
+
+        if (await _users.EmailExistsAsync(email, cancellationToken))
+        {
+            return Result.Failure<UserResponse>(
+                Error.Conflict("A user with this email already exists.", "EmailAlreadyExists"));
+        }
+
+        var passwordHash = _passwordHasher.Hash(request.Password);
+        var user = new User(request.Name.Trim(), email, passwordHash, UserRole.User);
+
+        await _users.AddAsync(user, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result.Success(ToUserResponse(user));
+    }
+
+    public async Task<Result<AuthResponse>> LoginAsync(
+        LoginRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = await _loginValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return Result.Failure<AuthResponse>(ToValidationError(validation));
+        }
+
+        var email = NormalizeEmail(request.Email);
+        var user = await _users.GetByEmailAsync(email, cancellationToken);
+
+        if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
+        {
+            return Result.Failure<AuthResponse>(
+                Error.Unauthorized("Invalid email or password.", "InvalidCredentials"));
+        }
+
+        var response = await IssueTokensAsync(user, cancellationToken);
+        return Result.Success(response);
+    }
+
+    public async Task<Result<AuthResponse>> RefreshAsync(
+        RefreshTokenRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            return Result.Failure<AuthResponse>(
+                Error.Validation("Refresh token is required.", "RefreshTokenRequired"));
+        }
+
+        var tokenHash = HashToken(request.RefreshToken);
+        var storedToken = await _refreshTokens.GetByTokenHashAsync(tokenHash, cancellationToken);
+
+        if (storedToken is null)
+        {
+            return Result.Failure<AuthResponse>(
+                Error.Unauthorized("Invalid refresh token.", "InvalidRefreshToken"));
+        }
+
+        if (storedToken.IsRevoked)
+        {
+            await RevokeAllActiveTokensAsync(storedToken.UserId, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result.Failure<AuthResponse>(
+                Error.Unauthorized(
+                    "Refresh token has been revoked. All active sessions have been terminated.",
+                    "RefreshTokenReuseDetected"));
+        }
+
+        if (storedToken.IsExpired)
+        {
+            return Result.Failure<AuthResponse>(
+                Error.Unauthorized("Refresh token has expired.", "RefreshTokenExpired"));
+        }
+
+        var user = await _users.GetByIdAsync(storedToken.UserId, cancellationToken);
+        if (user is null)
+        {
+            return Result.Failure<AuthResponse>(
+                Error.Unauthorized("Invalid refresh token.", "InvalidRefreshToken"));
+        }
+
+        var newRefreshTokenValue = GenerateTokenValue();
+        var newRefreshTokenHash = HashToken(newRefreshTokenValue);
+
+        storedToken.Revoke(newRefreshTokenHash);
+        _refreshTokens.Update(storedToken);
+
+        var accessToken = _jwtTokenService.CreateAccessToken(user);
+        var refreshToken = new RefreshToken(
+            user.Id,
+            newRefreshTokenHash,
+            DateTime.UtcNow.AddDays(RefreshTokenExpiryDays));
+
+        await _refreshTokens.AddAsync(refreshToken, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result.Success(new AuthResponse(accessToken.Token, newRefreshTokenValue, accessToken.ExpiresAt));
+    }
+
+    public async Task<Result> LogoutAsync(
+        LogoutRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            return Result.Failure(
+                Error.Validation("Refresh token is required.", "RefreshTokenRequired"));
+        }
+
+        var tokenHash = HashToken(request.RefreshToken);
+        var storedToken = await _refreshTokens.GetByTokenHashAsync(tokenHash, cancellationToken);
+
+        if (storedToken is null)
+        {
+            return Result.Failure(
+                Error.Unauthorized("Invalid refresh token.", "InvalidRefreshToken"));
+        }
+
+        if (!storedToken.IsRevoked)
+        {
+            storedToken.Revoke();
+            _refreshTokens.Update(storedToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return Result.Success();
+    }
+
+    public async Task<Result<UserResponse>> GetCurrentUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _users.GetByIdAsync(userId, cancellationToken);
+        if (user is null)
+        {
+            return Result.Failure<UserResponse>(Error.NotFound("User not found.", "UserNotFound"));
+        }
+
+        return Result.Success(ToUserResponse(user));
+    }
+
+    private async Task<AuthResponse> IssueTokensAsync(User user, CancellationToken cancellationToken)
+    {
+        var accessToken = _jwtTokenService.CreateAccessToken(user);
+
+        var refreshTokenValue = GenerateTokenValue();
+        var refreshToken = new RefreshToken(
+            user.Id,
+            HashToken(refreshTokenValue),
+            DateTime.UtcNow.AddDays(RefreshTokenExpiryDays));
+
+        await _refreshTokens.AddAsync(refreshToken, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new AuthResponse(accessToken.Token, refreshTokenValue, accessToken.ExpiresAt);
+    }
+
+    private async Task RevokeAllActiveTokensAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var activeTokens = await _refreshTokens.GetActiveByUserIdAsync(userId, cancellationToken);
+
+        foreach (var token in activeTokens)
+        {
+            token.Revoke();
+        }
+
+        if (activeTokens.Count > 0)
+        {
+            _refreshTokens.UpdateRange(activeTokens);
+        }
+    }
+
+    private static UserResponse ToUserResponse(User user) =>
+        new(user.Id, user.Name, user.Email, user.Role.ToString());
+
+    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
+    private static string GenerateTokenValue() =>
+        Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
+
+    private static string HashToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    private static Error ToValidationError(FluentValidation.Results.ValidationResult result)
+    {
+        var errors = result.Errors
+            .GroupBy(e => e.PropertyName)
+            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+
+        return Error.Validation(errors);
+    }
+}
