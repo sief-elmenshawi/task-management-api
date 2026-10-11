@@ -32,7 +32,7 @@ Entities are never returned from the API; only DTOs.
 ## Stack
 
 - .NET 10 / ASP.NET Core Web API (controllers)
-- EF Core + PostgreSQL (Npgsql)
+- EF Core + SQL Server (Microsoft.EntityFrameworkCore.SqlServer)
 - Redis (StackExchange.Redis) - used on day 2
 - BCrypt.Net-Next for password hashing
 - FluentValidation
