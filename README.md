@@ -72,8 +72,10 @@ on port `8080` inside the container; the host port comes from `API_PORT` in `.en
 the required values with working local defaults.
 
 A `429 Too Many Requests` response means the auth rate limit was reached - wait 60 seconds (the
-default window) before retrying. The Postman/Newman run raises the limit; see
-[Postman collection](#postman-collection).
+default window) before retrying. The committed `.env.example` ships a demo value
+(`RATE_LIMIT_AUTH_PERMIT=1000`) so the Postman/Newman run is not throttled, while the code default
+is `10` requests per `60` seconds - the value to use in production. See
+[Rate limiting](#rate-limiting) and [Postman / Newman](#postman--newman).
 
 ## How to try it in Swagger
 
