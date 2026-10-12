@@ -9,15 +9,12 @@ public sealed class RedisCacheService : ICacheService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly string _connectionString;
+    private readonly IConnectionMultiplexer _connection;
     private readonly ILogger<RedisCacheService> _logger;
-    private readonly object _lock = new();
 
-    private IConnectionMultiplexer? _connection;
-
-    public RedisCacheService(string connectionString, ILogger<RedisCacheService> logger)
+    public RedisCacheService(IConnectionMultiplexer connection, ILogger<RedisCacheService> logger)
     {
-        _connectionString = connectionString;
+        _connection = connection;
         _logger = logger;
     }
 
@@ -97,15 +94,14 @@ public sealed class RedisCacheService : ICacheService
 
     public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
     {
-        var connection = GetConnection();
-        if (connection is null || !connection.IsConnected)
+        if (!_connection.IsConnected)
         {
             return false;
         }
 
         try
         {
-            await connection.GetDatabase().PingAsync();
+            await _connection.GetDatabase().PingAsync();
             return true;
         }
         catch (Exception exception)
@@ -115,40 +111,6 @@ public sealed class RedisCacheService : ICacheService
         }
     }
 
-    private IDatabase? GetDatabase() => GetConnection()?.GetDatabase();
-
-    private IConnectionMultiplexer? GetConnection()
-    {
-        if (_connection is not null)
-        {
-            return _connection;
-        }
-
-        lock (_lock)
-        {
-            if (_connection is not null)
-            {
-                return _connection;
-            }
-
-            try
-            {
-                var options = ConfigurationOptions.Parse(_connectionString);
-                options.AbortOnConnectFail = false;
-
-                _connection = ConnectionMultiplexer.Connect(options);
-            }
-            catch (Exception exception)
-            {
-                _logger.LogWarning(
-                    exception,
-                    "Could not connect to Redis at {ConnectionString}. Caching is disabled and requests fall back to the database.",
-                    _connectionString);
-
-                _connection = null;
-            }
-
-            return _connection;
-        }
-    }
+    private IDatabase? GetDatabase() =>
+        _connection.IsConnected ? _connection.GetDatabase() : null;
 }

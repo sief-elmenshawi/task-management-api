@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Authentication;
 using TaskManagement.Domain.Repositories;
@@ -72,8 +73,18 @@ public static class DependencyInjection
 
         var redisConnectionString = configuration.GetConnectionString("Redis") ?? "localhost:6379";
 
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
+        {
+            var multiplexerOptions = ConfigurationOptions.Parse(redisConnectionString);
+            multiplexerOptions.AbortOnConnectFail = false;
+            multiplexerOptions.ConnectTimeout = 500;
+            multiplexerOptions.SyncTimeout = 500;
+            multiplexerOptions.AsyncTimeout = 500;
+            return ConnectionMultiplexer.Connect(multiplexerOptions);
+        });
+
         services.AddSingleton<ICacheService>(provider => new RedisCacheService(
-            redisConnectionString,
+            provider.GetRequiredService<IConnectionMultiplexer>(),
             provider.GetRequiredService<ILogger<RedisCacheService>>()));
 
         services.AddSingleton<ChannelTaskQueue>();
