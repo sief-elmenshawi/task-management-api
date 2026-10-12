@@ -20,11 +20,11 @@ public sealed class RedisHealthCheck : IHealthCheck
         {
             return await _cache.IsHealthyAsync(cancellationToken)
                 ? HealthCheckResult.Healthy("Redis is reachable.")
-                : HealthCheckResult.Unhealthy("Redis is not reachable.");
+                : HealthCheckResult.Degraded("Redis is not reachable.");
         }
         catch (Exception exception)
         {
-            return HealthCheckResult.Unhealthy("Redis connectivity check failed.", exception);
+            return HealthCheckResult.Degraded("Redis connectivity check failed.", exception);
         }
     }
 }
