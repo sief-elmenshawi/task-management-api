@@ -241,9 +241,10 @@ If Redis is unreachable, a warning is logged and every read falls back to SQL Se
 
 ## Background task processing
 
-Creating a task writes its id to an in-process `Channel<Guid>` (through `ITaskQueue`). A
+Creating a task writes its id to an in-process `Channel<Guid>` (through `ITaskProcessingQueue`). A
 `BackgroundService` (`TaskProcessingWorker`) runs `Worker:Concurrency` consumers in parallel (default
-`3`, see [Configuration](#configuration)). Each consumer reads the channel with a new DI scope per
+`3`, see [Configuration](#configuration)); each consumer pulls from the shared channel independently,
+so that many tasks can be processed at once. Each consumer reads the channel with a new DI scope per
 job, waits 3-5 seconds, and moves the task from `Pending` to `InProgress`, but only when it is still
 `Pending`. It then evicts the task's cache entry. If the task was changed concurrently
 (`DbUpdateConcurrencyException`) it is reloaded and skipped. Each job runs in a try/catch so a single
