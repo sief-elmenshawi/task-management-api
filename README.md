@@ -165,6 +165,14 @@ Enum values (`status`, `priority`, `role`) are accepted and returned as names
 | POST   | `/api/auth/logout`  | -    | Revoke a refresh token                   |
 | GET    | `/api/auth/me`      | User | Current user                             |
 
+Refresh tokens are single-use: each `refresh` rotates the token and issues a replacement. Concurrency
+is guarded with a SQL Server `rowversion` on the token row, so two simultaneous refreshes with the same
+token cannot both succeed - the losing request gets `401 InvalidRefreshToken`. Presenting a rotated
+token again within `RefreshToken:ReuseGraceSeconds` (default `30`; the Compose service reads
+`REFRESH_TOKEN_REUSE_GRACE_SECONDS`) is treated as a benign retry rather than an attack. Once that
+window has elapsed, reusing a rotated token is treated as theft: all of the user's active refresh
+tokens are revoked and the response is `401 RefreshTokenReuseDetected`.
+
 ### Users (Admin only)
 
 | Method | Route            | Auth  | Description                                             |

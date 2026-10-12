@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Authentication;
 using TaskManagement.Application.Authentication.Dtos;
@@ -8,6 +10,7 @@ using TaskManagement.Application.Authentication.Validators;
 using TaskManagement.Application.Common;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Domain.Enums;
+using TaskManagement.Domain.Exceptions;
 using TaskManagement.Domain.Repositories;
 
 namespace TaskManagement.UnitTests.Application;
@@ -20,7 +23,9 @@ public class AuthServiceTests
     private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
     private readonly IJwtTokenService _jwtTokenService = Substitute.For<IJwtTokenService>();
 
-    private AuthService CreateSut() => new(
+    private AuthService CreateSut() => CreateSut(new RefreshTokenOptions());
+
+    private AuthService CreateSut(RefreshTokenOptions options) => new(
         _users,
         _refreshTokens,
         _unitOfWork,
@@ -28,6 +33,7 @@ public class AuthServiceTests
         _jwtTokenService,
         new RegisterRequestValidator(),
         new LoginRequestValidator(),
+        new OptionsWrapper<RefreshTokenOptions>(options),
         NullLogger<AuthService>.Instance);
 
     [Fact]
@@ -127,11 +133,11 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RefreshAsync_RevokesAllSessions_WhenTokenReused()
+    public async Task RefreshAsync_RevokesAllSessions_WhenRotatedTokenPresentedAfterGraceWindow()
     {
         var userId = Guid.NewGuid();
         var reused = new RefreshToken(userId, "reused-hash", DateTime.UtcNow.AddDays(1));
-        reused.Revoke();
+        reused.Revoke("replacement-hash");
 
         var stillActive = new RefreshToken(userId, "active-hash", DateTime.UtcNow.AddDays(1));
 
@@ -139,12 +145,51 @@ public class AuthServiceTests
         _refreshTokens.GetActiveByUserIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns(new List<RefreshToken> { stillActive });
 
-        var result = await CreateSut().RefreshAsync(new RefreshTokenRequest("raw-refresh-token"));
+        var result = await CreateSut(new RefreshTokenOptions { ReuseGraceSeconds = -1 })
+            .RefreshAsync(new RefreshTokenRequest("raw-refresh-token"));
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("RefreshTokenReuseDetected");
         stillActive.IsRevoked.Should().BeTrue();
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RefreshAsync_ReturnsInvalidToken_WhenRecentlyRotatedTokenPresented()
+    {
+        var userId = Guid.NewGuid();
+        var rotated = new RefreshToken(userId, "rotated-hash", DateTime.UtcNow.AddDays(1));
+        rotated.Revoke("replacement-hash");
+
+        _refreshTokens.GetByTokenHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(rotated);
+
+        var result = await CreateSut().RefreshAsync(new RefreshTokenRequest("raw-refresh-token"));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("InvalidRefreshToken");
+        await _refreshTokens.DidNotReceive()
+            .GetActiveByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RefreshAsync_ReturnsInvalidToken_WhenRotationConflictsWithConcurrentRequest()
+    {
+        var userId = Guid.NewGuid();
+        var stored = new RefreshToken(userId, "old-hash", DateTime.UtcNow.AddDays(1));
+        var user = new User("Jane", "jane@example.com", "hashed", UserRole.User);
+
+        _refreshTokens.GetByTokenHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(stored);
+        _users.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
+        _jwtTokenService.CreateAccessToken(user)
+            .Returns(new AccessToken("access", DateTime.UtcNow.AddMinutes(15)));
+        _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new ConcurrencyException("conflict", new InvalidOperationException()));
+
+        var result = await CreateSut().RefreshAsync(new RefreshTokenRequest("raw-refresh-token"));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("InvalidRefreshToken");
     }
 
     [Fact]

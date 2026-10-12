@@ -28,6 +28,9 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
         builder.Property(t => t.CreatedAt)
             .IsRequired();
 
+        builder.Property(t => t.RowVersion)
+            .IsRowVersion();
+
         builder.HasIndex(t => t.UserId);
 
         builder.HasQueryFilter(t => !t.User.IsDeleted);

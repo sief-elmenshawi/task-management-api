@@ -2,11 +2,13 @@ using System.Security.Cryptography;
 using System.Text;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Authentication.Dtos;
 using TaskManagement.Application.Common;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Domain.Enums;
+using TaskManagement.Domain.Exceptions;
 using TaskManagement.Domain.Repositories;
 
 namespace TaskManagement.Application.Authentication;
@@ -22,6 +24,7 @@ public sealed class AuthService : IAuthService
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IValidator<RegisterRequest> _registerValidator;
     private readonly IValidator<LoginRequest> _loginValidator;
+    private readonly IOptions<RefreshTokenOptions> _refreshTokenOptions;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -32,6 +35,7 @@ public sealed class AuthService : IAuthService
         IJwtTokenService jwtTokenService,
         IValidator<RegisterRequest> registerValidator,
         IValidator<LoginRequest> loginValidator,
+        IOptions<RefreshTokenOptions> refreshTokenOptions,
         ILogger<AuthService> logger)
     {
         _users = users;
@@ -41,6 +45,7 @@ public sealed class AuthService : IAuthService
         _jwtTokenService = jwtTokenService;
         _registerValidator = registerValidator;
         _loginValidator = loginValidator;
+        _refreshTokenOptions = refreshTokenOptions;
         _logger = logger;
     }
 
@@ -123,17 +128,27 @@ public sealed class AuthService : IAuthService
 
         if (storedToken.IsRevoked)
         {
-            await RevokeAllActiveTokensAsync(storedToken.UserId, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            if (IsReuse(storedToken))
+            {
+                await RevokeAllActiveTokensAsync(storedToken.UserId, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                _logger.LogWarning(
+                    "Refresh token reuse detected for user {UserId}; revoking all active sessions.",
+                    storedToken.UserId);
+
+                return Result.Failure<AuthResponse>(
+                    Error.Unauthorized(
+                        "Refresh token has been revoked. All active sessions have been terminated.",
+                        "RefreshTokenReuseDetected"));
+            }
 
             _logger.LogWarning(
-                "Refresh token reuse detected for user {UserId}; revoking all active sessions.",
+                "Recently rotated or logged-out refresh token presented for user {UserId}; treating as a benign retry.",
                 storedToken.UserId);
 
             return Result.Failure<AuthResponse>(
-                Error.Unauthorized(
-                    "Refresh token has been revoked. All active sessions have been terminated.",
-                    "RefreshTokenReuseDetected"));
+                Error.Unauthorized("Invalid refresh token.", "InvalidRefreshToken"));
         }
 
         if (storedToken.IsExpired)
@@ -165,7 +180,20 @@ public sealed class AuthService : IAuthService
             DateTime.UtcNow.AddDays(RefreshTokenExpiryDays));
 
         await _refreshTokens.AddAsync(refreshToken, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (ConcurrencyException)
+        {
+            _logger.LogWarning(
+                "Refresh token rotation for user {UserId} conflicted with a concurrent request.",
+                user.Id);
+
+            return Result.Failure<AuthResponse>(
+                Error.Unauthorized("Invalid refresh token.", "InvalidRefreshToken"));
+        }
 
         _logger.LogInformation("Rotated refresh token for user {UserId}.", user.Id);
 
@@ -245,6 +273,11 @@ public sealed class AuthService : IAuthService
 
     private static UserResponse ToUserResponse(User user) =>
         new(user.Id, user.Name, user.Email, user.Role.ToString());
+
+    private bool IsReuse(RefreshToken token) =>
+        token.ReplacedByTokenHash is not null
+        && token.RevokedAt is { } revokedAt
+        && DateTime.UtcNow - revokedAt > TimeSpan.FromSeconds(_refreshTokenOptions.Value.ReuseGraceSeconds);
 
     private static string GenerateTokenValue() =>
         Convert.ToHexString(RandomNumberGenerator.GetBytes(64));

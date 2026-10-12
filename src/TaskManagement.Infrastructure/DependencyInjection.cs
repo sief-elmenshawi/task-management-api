@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TaskManagement.Application.Abstractions;
+using TaskManagement.Application.Authentication;
 using TaskManagement.Domain.Repositories;
 using TaskManagement.Infrastructure.Authentication;
 using TaskManagement.Infrastructure.Caching;
@@ -39,6 +40,13 @@ public static class DependencyInjection
             .Validate(
                 settings => settings.ExpiryMinutes > 0,
                 "JwtSettings:ExpiryMinutes must be greater than zero.")
+            .ValidateOnStart();
+
+        services.AddOptions<RefreshTokenOptions>()
+            .Bind(configuration.GetSection(RefreshTokenOptions.SectionName))
+            .Validate(
+                options => options.ReuseGraceSeconds >= 0,
+                "RefreshToken:ReuseGraceSeconds must be at least zero.")
             .ValidateOnStart();
 
         services.AddScoped<IUserRepository, UserRepository>();

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Authentication;
@@ -86,6 +87,7 @@ public class SoftDeleteQueryFilterTests
             jwtTokenService,
             new RegisterRequestValidator(),
             new LoginRequestValidator(),
+            new OptionsWrapper<RefreshTokenOptions>(new RefreshTokenOptions()),
             NullLogger<AuthService>.Instance);
 
         var beforeDelete = await service.LoginAsync(new LoginRequest("jane@example.com", "Password1"));

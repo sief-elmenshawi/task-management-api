@@ -518,7 +518,7 @@
           ]
         },
         {
-          "name": "AUTH-11 refresh again with R1 (reuse) -> 401",
+          "name": "AUTH-11 refresh again with R1 after waiting past the reuse grace (reuse) -> 401",
           "request": {
             "method": "POST",
             "header": [
@@ -542,6 +542,17 @@
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// R1 was rotated in AUTH-10; wait until it is outside the reuse grace window (RefreshToken:ReuseGraceSeconds, set to 1 in the demo .env).",
+                  "const waitUntil = Date.now() + 2000;",
+                  "while (Date.now() < waitUntil) { }"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {

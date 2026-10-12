@@ -59,6 +59,7 @@ services:
       Worker__Concurrency: "${WORKER_CONCURRENCY:-3}"
       RateLimiting__Auth__PermitLimit: "${RATE_LIMIT_AUTH_PERMIT:-10}"
       RateLimiting__Auth__WindowSeconds: "${RATE_LIMIT_AUTH_WINDOW:-60}"
+      RefreshToken__ReuseGraceSeconds: "${REFRESH_TOKEN_REUSE_GRACE_SECONDS:-30}"
     ports:
       - "${API_PORT:-8080}:8080"
     healthcheck:
