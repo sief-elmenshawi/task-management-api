@@ -48,6 +48,7 @@ Persistence detail: `Priority` is stored as an `int` (while `Status` is stored a
 
 - Docker Desktop (for the full-stack option)
 - .NET 10 SDK (only for running without Docker or running the tests)
+- Node.js (only for the Postman/Newman run, via `npx newman`)
 
 ## Quick start (Docker, whole stack)
 
