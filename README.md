@@ -256,6 +256,25 @@ process stopped during the 3-5 second delay) resumes automatically. Recovery run
 the read loop and logs the number of recovered tasks. This makes the in-process queue resilient to
 restarts as long as the task was persisted first.
 
+## Health checks
+
+- `GET /health/live` - liveness probe. Always returns `200` while the process is running; it runs no
+  dependency checks.
+- `GET /health/ready` - readiness probe. Runs the SQL Server and Redis checks: a failure to reach SQL
+  Server is `Unhealthy` (`503`), while a Redis failure is reported as `Degraded` so a cache outage
+  does not take the API out of rotation (reads fall back to SQL Server). The `api` service
+  `healthcheck` in `docker-compose.yml` polls this endpoint.
+
+## Rate limiting
+
+The `auth` rate-limit policy is applied to `POST /api/auth/register`, `POST /api/auth/login` and
+`POST /api/auth/refresh`. It is a fixed window partitioned by client IP address: by default `10`
+requests are allowed per `60` seconds. When the limit is exceeded the API returns
+`429 Too Many Requests` with a `Retry-After` header (the window length, in seconds) and an
+`application/problem+json` body (`code: TooManyRequests`). The limits are configurable through
+`RateLimiting:Auth:PermitLimit` and `RateLimiting:Auth:WindowSeconds`; Compose forwards
+`RATE_LIMIT_AUTH_PERMIT` and `RATE_LIMIT_AUTH_WINDOW` (see [Configuration](#configuration)).
+
 ## Logging
 
 Structured logs are emitted through `ILogger`:
