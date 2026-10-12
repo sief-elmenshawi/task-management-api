@@ -2623,6 +2623,145 @@
               }
             }
           ]
+        },
+        {
+          "name": "TASKS-27 PATCH empty body -> 400 status required",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/{{baseTaskId}}/status",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userAToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('TASKS-27 status is 400', function () { pm.response.to.have.status(400); });",
+                  "const b = pm.response.json();",
+                  "pm.test('TASKS-27 is ProblemDetails with code ValidationFailed', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
+                  "});",
+                  "pm.test('TASKS-27 does not accept a missing status (no reset to Pending)', function () {",
+                  "  pm.expect(b.errors).to.have.property('status');",
+                  "  pm.expect(b.errors.status.join(' ')).to.include('Status is required.');",
+                  "  pm.expect(b.errors).to.not.have.property('request');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "TASKS-28 GET after empty PATCH still Done -> 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{baseTaskId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userAToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('TASKS-28 status is 200', function () { pm.response.to.have.status(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('TASKS-28 status was not reset (still Done)', function () { pm.expect(b.status).to.eql('Done'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "TASKS-29 create without priority -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userAToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"NoPriority\",\n  \"description\": \"missing priority\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('TASKS-29 status is 400', function () { pm.response.to.have.status(400); });",
+                  "const b = pm.response.json();",
+                  "pm.test('TASKS-29 is ProblemDetails with code ValidationFailed', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
+                  "});",
+                  "pm.test('TASKS-29 rejects a missing priority', function () {",
+                  "  pm.expect(b.errors).to.have.property('priority');",
+                  "  pm.expect(b.errors.priority.join(' ')).to.include('Priority is required.');",
+                  "  pm.expect(b.errors).to.not.have.property('request');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

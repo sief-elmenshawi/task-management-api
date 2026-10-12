@@ -15,6 +15,8 @@ public sealed class CreateTaskRequestValidator : AbstractValidator<CreateTaskReq
             .MaximumLength(1000).WithMessage("Description must not exceed 1000 characters.");
 
         RuleFor(x => x.Priority)
-            .IsInEnum().WithMessage("Priority is invalid.");
+            .Cascade(CascadeMode.Stop)
+            .NotNull().WithMessage("Priority is required.")
+            .IsInEnum().WithMessage("Invalid value. Allowed values: Low, Medium, High.");
     }
 }

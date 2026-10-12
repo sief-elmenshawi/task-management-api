@@ -30,6 +30,32 @@ public class TaskServiceTests
         NullLogger<TaskService>.Instance);
 
     [Fact]
+    public async Task CreateAsync_ReturnsValidationError_WhenPriorityMissing()
+    {
+        var result = await CreateSut().CreateAsync(
+            Guid.NewGuid(), new CreateTaskRequest("My Task", null, null));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("ValidationFailed");
+        await _tasks.DidNotReceive().ExistsForUserOnDateAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>());
+        await _taskQueue.DidNotReceive().EnqueueAsync(
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReturnsValidationError_WhenPriorityOutOfRange()
+    {
+        var result = await CreateSut().CreateAsync(
+            Guid.NewGuid(), new CreateTaskRequest("My Task", null, (TaskPriority)99));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("ValidationFailed");
+        await _taskQueue.DidNotReceive().EnqueueAsync(
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CreateAsync_ReturnsConflict_WhenTitleExistsForUserToday()
     {
         _tasks.ExistsForUserOnDateAsync(
@@ -186,6 +212,21 @@ public class TaskServiceTests
 
         var result = await CreateSut().UpdateStatusAsync(
             userId, task.Id, new UpdateTaskStatusRequest(null));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("ValidationFailed");
+        await _tasks.DidNotReceive().GetByIdForUserAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ReturnsValidationError_WhenStatusOutOfRange()
+    {
+        var userId = Guid.NewGuid();
+        var task = new TaskItem("Task", null, TaskPriority.Low, userId);
+        _tasks.GetByIdForUserAsync(task.Id, userId, Arg.Any<CancellationToken>()).Returns(task);
+
+        var result = await CreateSut().UpdateStatusAsync(
+            userId, task.Id, new UpdateTaskStatusRequest((TaskItemStatus)99));
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("ValidationFailed");

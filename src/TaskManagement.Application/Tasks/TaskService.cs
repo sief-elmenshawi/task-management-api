@@ -50,7 +50,7 @@ public sealed class TaskService : ITaskService
             return Result.Failure<TaskResponse>(validation.ToError());
         }
 
-        var task = new TaskItem(request.Title, request.Description, request.Priority, userId);
+        var task = new TaskItem(request.Title, request.Description, request.Priority!.Value, userId);
 
         if (await _tasks.ExistsForUserOnDateAsync(userId, task.NormalizedTitle, task.CreatedDate, cancellationToken))
         {
