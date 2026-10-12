@@ -17,7 +17,6 @@ public class TaskProcessingWorker : BackgroundService
 {
     private const int MinDelayMilliseconds = 3000;
     private const int MaxDelayMilliseconds = 5000;
-    private static readonly TimeSpan RecoveryInterval = TimeSpan.FromSeconds(60);
 
     private readonly ChannelTaskQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -44,7 +43,7 @@ public class TaskProcessingWorker : BackgroundService
             "Task processing worker started with {Concurrency} consumer(s).",
             concurrency);
 
-        var recovery = RunPeriodicRecoveryAsync(stoppingToken);
+        var recovery = RecoverPendingTasksAsync(stoppingToken);
 
         var consumers = new Task[concurrency];
         for (var index = 0; index < concurrency; index++)
@@ -86,24 +85,6 @@ public class TaskProcessingWorker : BackgroundService
                 {
                     _logger.LogError(exception, "Failed to process task {TaskId}.", taskId);
                 }
-            }
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // Expected during host shutdown.
-        }
-    }
-
-    private async Task RunPeriodicRecoveryAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await RecoverPendingTasksAsync(stoppingToken);
-
-            using var timer = new PeriodicTimer(RecoveryInterval);
-            while (await timer.WaitForNextTickAsync(stoppingToken))
-            {
-                await RecoverPendingTasksAsync(stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

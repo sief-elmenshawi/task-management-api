@@ -37,7 +37,7 @@ Persistence detail: `Priority` is stored as an `int` (while `Status` is stored a
 - .NET 10 / ASP.NET Core Web API (controllers)
 - EF Core + SQL Server (Microsoft.EntityFrameworkCore.SqlServer)
 - Redis (StackExchange.Redis) for cache-aside reads of single tasks
-- A `BackgroundService` that consumes an in-process channel and recovers pending work on startup and periodically
+- A `BackgroundService` that consumes an in-process channel and recovers pending work on startup
 - BCrypt.Net-Next for password hashing
 - FluentValidation
 - Swashbuckle (Swagger)
@@ -184,6 +184,9 @@ files.
   session; the user's other sessions stay valid.
 - **Deleted users** - users are soft-deleted and excluded from lookups, so a deleted account can no
   longer log in or refresh; an access token already issued stays valid until it expires.
+- **401 responses** - every authentication challenge includes the `WWW-Authenticate: Bearer` header,
+  and when the token itself is invalid or expired it reads `WWW-Authenticate: Bearer error="invalid_token"`
+  (verify with `curl -i`).
 
 Known limitation: because the access token is stateless, an access token issued to a user who is then
 deleted stays valid until it expires (at most `15` minutes); tokens are not re-checked against the
@@ -241,12 +244,9 @@ returns `404` rather than `403`, so task ids are not disclosed.
 
 `GET /api/tasks/{id}` uses a cache-aside strategy. The first read loads the task from SQL Server and
 stores it in Redis under `task:{userId}:{taskId}` with a 5-minute TTL (logged at `Debug` as a cache
-miss). The entry is written with set-if-not-exists, so a concurrent writer's fresher value is never
-overwritten by a slow reader. Subsequent reads are served from Redis (logged as a cache hit). Status
-changes write the updated task through to Redis (and the background worker evicts the entry after it
-moves a task to `InProgress`), so reads never return a stale status. If Redis is unreachable, a
-warning is logged and every read falls back to SQL Server; a failed invalidation is queued in memory
-and retried on the next cache access, so an eviction is not silently lost.
+miss). Subsequent reads are served from Redis (logged as a cache hit). Status changes write the
+updated task through to Redis and the background worker evicts the entry after it moves a task to
+`InProgress`. If Redis is unreachable, a warning is logged and every read falls back to SQL Server.
 
 ## Background task processing
 
@@ -261,12 +261,11 @@ is retried up to three times with a short backoff; a task that never reaches `In
 `Pending` so recovery can pick it up again. Each job runs in a try/catch so a single failure never
 stops a consumer, and each loop honors the host's shutdown token.
 
-**Recovery.** When the worker starts it queries the database for tasks still in `Pending` and
-re-enqueues them, then repeats that sweep every `60` seconds while it runs, so work that was queued
-but never processed (for example because the process stopped during the 3-5 second delay, or the
-enqueue was lost) resumes automatically. Recovery runs concurrently with the read loop and logs the
-number of recovered tasks. This makes the in-process queue resilient to restarts as long as the task
-was persisted first.
+**Startup recovery.** When the worker starts it queries the database for tasks still in `Pending`
+and re-enqueues them, so work that was queued but never processed (for example because the process
+stopped during the 3-5 second delay, or the enqueue was lost) resumes when the process restarts.
+Recovery runs once at startup, concurrently with the read loop, and logs the number of recovered
+tasks. It does not run again while the process keeps running.
 
 ## Health checks
 
@@ -367,7 +366,7 @@ limit back to `10`) to observe the `429` response.
   and automatic fallback to SQL Server when Redis is unavailable (see [Caching](#caching)).
 - An in-process background worker (`TaskProcessingWorker`) with `Worker:Concurrency` parallel
   consumers (default `3`) that moves `Pending` tasks to `InProgress`, retries transient failures and
-  recovers pending tasks on startup and every `60` seconds.
+  recovers pending tasks on startup.
 - Soft-delete for users: `DELETE` revokes the account's refresh tokens, frees the email for reuse and
   keeps the row for auditing.
 - Refresh-token rotation with hash-only storage, reuse detection (configurable grace window) and a
@@ -380,9 +379,19 @@ limit back to `10`) to observe the `429` response.
 ## Known limitations
 
 - The background queue is in-memory and lives in the API process. Pending tasks are recovered from the
-  database on startup and every `60` seconds, but a task whose enqueue never persisted (the process
-  died between commit and enqueue) would need a durable broker such as a Redis list or a real message
-  queue.
+  database once when the worker starts; there is no periodic recovery while the process keeps running.
+  A task whose enqueue never persisted (the process died between commit and enqueue) stays `Pending`
+  until the next restart, or would need a durable broker such as a Redis list or a real message queue.
+- Cache reads may serve a stale status for up to the 5-minute TTL in rare races (a read and a status
+  update racing, leaving the older status in Redis) or if a Redis eviction failed while Redis was
+  down. Only status updates write or evict the entry; reads never invalidate.
+- Access tokens are stateless (JWT), so deleting a user does not invalidate an already-issued access
+  token until it expires (at most `15` minutes). A deleted user can therefore still call the API and
+  create tasks with a previously issued token, and cached task reads are not re-checked against the
+  soft-delete filter.
+- `POST /api/auth/logout` revokes only the refresh token that is sent. Presenting a rotated token to
+  log out returns `204` without revoking its replacement, and access tokens stay valid until they
+  expire.
 - Duplicate titles are scoped per user, per calendar day (UTC), and compared case-insensitively after
   trimming. A unique index on `(UserId, NormalizedTitle, CreatedDate)` enforces this in the database;
   the 2601/2627 SQL errors are mapped to `409`.
