@@ -47,7 +47,7 @@ public sealed class TaskService : ITaskService
         var validation = await _createValidator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
-            return Result.Failure<TaskResponse>(ToValidationError(validation));
+            return Result.Failure<TaskResponse>(validation.ToError());
         }
 
         var normalizedTitle = request.Title.Trim().ToUpperInvariant();
@@ -132,7 +132,7 @@ public sealed class TaskService : ITaskService
         var validation = await _statusValidator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
-            return Result.Failure<TaskResponse>(ToValidationError(validation));
+            return Result.Failure<TaskResponse>(validation.ToError());
         }
 
         var task = await _tasks.GetByIdAsync(taskId, cancellationToken);
@@ -174,13 +174,4 @@ public sealed class TaskService : ITaskService
 
     private static TaskResponse ToResponse(TaskItem task) =>
         new(task.Id, task.Title, task.Description, task.Status, task.Priority, task.CreatedAt);
-
-    private static Error ToValidationError(FluentValidation.Results.ValidationResult result)
-    {
-        var errors = result.Errors
-            .GroupBy(e => e.PropertyName)
-            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
-
-        return Error.Validation(errors);
-    }
 }

@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskManagement.Api.Extensions;
@@ -35,7 +34,7 @@ public sealed class TasksController : ControllerBase
         [FromBody] CreateTaskRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var userId))
+        if (User.GetUserId() is not { } userId)
         {
             return Unauthorized();
         }
@@ -58,7 +57,7 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var userId))
+        if (User.GetUserId() is not { } userId)
         {
             return Unauthorized();
         }
@@ -77,7 +76,7 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var userId))
+        if (User.GetUserId() is not { } userId)
         {
             return Unauthorized();
         }
@@ -100,7 +99,7 @@ public sealed class TasksController : ControllerBase
         [FromBody] UpdateTaskStatusRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var userId))
+        if (User.GetUserId() is not { } userId)
         {
             return Unauthorized();
         }
@@ -108,7 +107,4 @@ public sealed class TasksController : ControllerBase
         var result = await _taskService.UpdateStatusAsync(userId, id, request, cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : result.ToProblemDetails();
     }
-
-    private bool TryGetUserId(out Guid userId) =>
-        Guid.TryParse(User.FindFirstValue("sub"), out userId);
 }

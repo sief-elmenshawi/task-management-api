@@ -51,10 +51,10 @@ public sealed class AuthService : IAuthService
         var validation = await _registerValidator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
-            return Result.Failure<UserResponse>(ToValidationError(validation));
+            return Result.Failure<UserResponse>(validation.ToError());
         }
 
-        var email = NormalizeEmail(request.Email);
+        var email = EmailNormalizer.Normalize(request.Email);
 
         if (await _users.EmailExistsAsync(email, cancellationToken))
         {
@@ -80,10 +80,10 @@ public sealed class AuthService : IAuthService
         var validation = await _loginValidator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
-            return Result.Failure<AuthResponse>(ToValidationError(validation));
+            return Result.Failure<AuthResponse>(validation.ToError());
         }
 
-        var email = NormalizeEmail(request.Email);
+        var email = EmailNormalizer.Normalize(request.Email);
         var user = await _users.GetByEmailAsync(email, cancellationToken);
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
@@ -253,20 +253,9 @@ public sealed class AuthService : IAuthService
     private static UserResponse ToUserResponse(User user) =>
         new(user.Id, user.Name, user.Email, user.Role.ToString());
 
-    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
-
     private static string GenerateTokenValue() =>
         Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
 
     private static string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-
-    private static Error ToValidationError(FluentValidation.Results.ValidationResult result)
-    {
-        var errors = result.Errors
-            .GroupBy(e => e.PropertyName)
-            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
-
-        return Error.Validation(errors);
-    }
 }

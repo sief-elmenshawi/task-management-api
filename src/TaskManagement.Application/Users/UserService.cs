@@ -47,10 +47,10 @@ public sealed class UserService : IUserService
         var validation = await _registerValidator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
-            return Result.Failure<UserAdminResponse>(ToValidationError(validation));
+            return Result.Failure<UserAdminResponse>(validation.ToError());
         }
 
-        var email = NormalizeEmail(request.Email);
+        var email = EmailNormalizer.Normalize(request.Email);
 
         if (await _users.EmailExistsAsync(email, cancellationToken))
         {
@@ -106,15 +106,4 @@ public sealed class UserService : IUserService
 
     private static UserAdminResponse ToResponse(User user) =>
         new(user.Id, user.Name, user.Email, user.Role.ToString(), user.CreatedAt);
-
-    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
-
-    private static Error ToValidationError(FluentValidation.Results.ValidationResult result)
-    {
-        var errors = result.Errors
-            .GroupBy(e => e.PropertyName)
-            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
-
-        return Error.Validation(errors);
-    }
 }

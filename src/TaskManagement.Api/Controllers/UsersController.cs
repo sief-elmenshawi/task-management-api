@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskManagement.Api.Extensions;
@@ -67,9 +66,7 @@ public sealed class UsersController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var subject = User.FindFirstValue("sub");
-
-        if (!Guid.TryParse(subject, out var currentUserId))
+        if (User.GetUserId() is not { } currentUserId)
         {
             return Unauthorized();
         }

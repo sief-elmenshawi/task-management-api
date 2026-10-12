@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskManagement.Api.Extensions;
@@ -98,9 +97,7 @@ public sealed class AuthController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {
-        var subject = User.FindFirstValue("sub");
-
-        if (!Guid.TryParse(subject, out var userId))
+        if (User.GetUserId() is not { } userId)
         {
             return Unauthorized();
         }
