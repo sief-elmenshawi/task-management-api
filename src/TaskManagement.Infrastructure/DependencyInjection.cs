@@ -89,6 +89,7 @@ public static class DependencyInjection
 
         services.AddSingleton<ChannelTaskQueue>();
         services.AddSingleton<ITaskProcessingQueue>(provider => provider.GetRequiredService<ChannelTaskQueue>());
+        services.AddSingleton<ITransientFailureDetector, TransientSqlFailureDetector>();
 
         services.AddOptions<WorkerOptions>()
             .Bind(configuration.GetSection(WorkerOptions.SectionName))

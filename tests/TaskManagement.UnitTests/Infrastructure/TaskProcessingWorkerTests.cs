@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using NSubstitute.Core;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Tasks;
 using TaskManagement.Domain.Entities;
@@ -21,6 +22,7 @@ public class TaskProcessingWorkerTests
     private readonly ITaskRepository _tasks = Substitute.For<ITaskRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly ICacheService _cache = Substitute.For<ICacheService>();
+    private readonly ITransientFailureDetector _detector = Substitute.For<ITransientFailureDetector>();
     private readonly ChannelTaskQueue _queue = new();
 
     private TestWorker CreateWorker(out ServiceProvider provider, AppDbContext? context = null, int concurrency = 1)
@@ -38,7 +40,7 @@ public class TaskProcessingWorkerTests
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         var options = Options.Create(new WorkerOptions { Concurrency = concurrency });
-        return new TestWorker(_queue, scopeFactory, options, NullLogger<TaskProcessingWorker>.Instance);
+        return new TestWorker(_queue, scopeFactory, options, _detector, NullLogger<TaskProcessingWorker>.Instance);
     }
 
     private static AppDbContext CreateContext() =>
@@ -161,6 +163,8 @@ public class TaskProcessingWorkerTests
         var worker = CreateWorker(out var provider);
         using var _ = provider;
 
+        _detector.IsTransient(Arg.Any<Exception>()).Returns(true);
+
         var task = new TaskItem("Task", null, TaskPriority.Low, Guid.NewGuid());
         var attempts = 0;
         _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>())
@@ -169,7 +173,7 @@ public class TaskProcessingWorkerTests
                 attempts++;
                 if (attempts == 1)
                 {
-                    throw new InvalidOperationException("transient");
+                    throw new TimeoutException("transient");
                 }
 
                 return task;
@@ -180,6 +184,30 @@ public class TaskProcessingWorkerTests
         attempts.Should().Be(2);
         task.Status.Should().Be(TaskItemStatus.InProgress);
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProcessWithRetryAsync_DoesNotRetry_WhenFailureIsNotTransient()
+    {
+        var worker = CreateWorker(out var provider);
+        using var _ = provider;
+
+        _detector.IsTransient(Arg.Any<Exception>()).Returns(false);
+
+        var task = new TaskItem("Task", null, TaskPriority.Low, Guid.NewGuid());
+        var attempts = 0;
+        Func<CallInfo, TaskItem?> getById = _ =>
+        {
+            attempts++;
+            throw new InvalidOperationException("permanent");
+        };
+        _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(getById);
+
+        var act = async () => await worker.ProcessWithRetryAsync(task.Id, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        attempts.Should().Be(1);
+        task.Status.Should().Be(TaskItemStatus.Pending);
     }
 
     [Fact]
@@ -230,8 +258,9 @@ public class TaskProcessingWorkerTests
             ChannelTaskQueue queue,
             IServiceScopeFactory scopeFactory,
             IOptions<WorkerOptions> options,
+            ITransientFailureDetector transientFailureDetector,
             Microsoft.Extensions.Logging.ILogger<TaskProcessingWorker> logger)
-            : base(queue, scopeFactory, options, logger)
+            : base(queue, scopeFactory, options, transientFailureDetector, logger)
         {
         }
 

@@ -21,17 +21,20 @@ public class TaskProcessingWorker : BackgroundService
     private readonly ChannelTaskQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<WorkerOptions> _options;
+    private readonly ITransientFailureDetector _transientFailureDetector;
     private readonly ILogger<TaskProcessingWorker> _logger;
 
     public TaskProcessingWorker(
         ChannelTaskQueue queue,
         IServiceScopeFactory scopeFactory,
         IOptions<WorkerOptions> options,
+        ITransientFailureDetector transientFailureDetector,
         ILogger<TaskProcessingWorker> logger)
     {
         _queue = queue;
         _scopeFactory = scopeFactory;
         _options = options;
+        _transientFailureDetector = transientFailureDetector;
         _logger = logger;
     }
 
@@ -108,13 +111,15 @@ public class TaskProcessingWorker : BackgroundService
             {
                 throw;
             }
-            catch (Exception exception) when (attempt < maxAttempts)
+            catch (Exception exception)
+                when (_transientFailureDetector.IsTransient(exception) && attempt < maxAttempts)
             {
                 _logger.LogWarning(
                     exception,
-                    "Failed to process task {TaskId} on attempt {Attempt}; retrying.",
+                    "Transient failure processing task {TaskId} on attempt {Attempt} of {MaxAttempts}; retrying after a short backoff.",
                     taskId,
-                    attempt);
+                    attempt,
+                    maxAttempts);
 
                 await Task.Delay(TimeSpan.FromMilliseconds(500 * attempt), cancellationToken);
             }
