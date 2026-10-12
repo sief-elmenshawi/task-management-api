@@ -348,21 +348,40 @@ forwards both to the API (see [Configuration](#configuration)). The lowered grac
 `AUTH-11` refresh-reuse scenario wait past it. Run the stack without the overrides (or set the permit
 limit back to `10`) to observe the `429` response.
 
-## Assumptions and known limitations
+## Bonus items implemented
 
+- Redis cache-aside for `GET /api/tasks/{id}`, with cache eviction on status change and automatic
+  fallback to SQL Server when Redis is unavailable (see [Caching](#caching)).
+- An in-process background worker (`TaskProcessingWorker`) with `Worker:Concurrency` parallel
+  consumers (default `3`) that moves `Pending` tasks to `InProgress` and recovers pending tasks on
+  startup.
+- Soft-delete for users: `DELETE` revokes the account's refresh tokens, frees the email for reuse and
+  keeps the row for auditing.
+- Refresh-token rotation with hash-only storage, reuse detection (configurable grace window) and a
+  `rowversion` guard for concurrent refreshes.
+- Auth rate limiting that answers `429 Too Many Requests` with a `Retry-After` header.
+- Health checks (`/health/live` and `/health/ready`).
+- RFC 7807 ProblemDetails for every error, including model-binding failures and `499` for
+  client-aborted requests, plus structured per-request logging.
+
+## Known limitations
+
+- The background queue is in-memory and lives in the API process. Pending tasks are recovered from the
+  database on startup, but a task whose enqueue never persisted (the process died between commit and
+  enqueue) would need a durable broker such as a Redis list or a real message queue.
 - Duplicate titles are scoped per user, per calendar day (UTC), and compared case-insensitively after
   trimming. A unique index on `(UserId, NormalizedTitle, CreatedDate)` enforces this in the database;
   the 2601/2627 SQL errors are mapped to `409`.
-- The background worker lives in the same process as the API and its queue is in-memory. Pending
-  tasks are recovered from the database on startup, but a task whose `POST` enqueue never persisted
-  (i.e. the process died between commit and enqueue) would need a durable broker such as a Redis list
-  or a real message queue.
-- Admins create and delete accounts but cannot delete their own account; there is no endpoint to
+- Access tokens are stateless (JWT), so deleting a user does not invalidate an already-issued access
+  token until it expires (at most `15` minutes).
+- The seeded admin password (`Admin@123`) is a documented development default; change it in any real
+  deployment.
+- Admins create and delete accounts but cannot delete their own account, and there is no endpoint to
   change roles because it was not part of the scope.
-- `RowVersion` is an EF concurrency token; concurrent status updates surface as `409 Conflict`
-  (`ConcurrencyConflict`).
 - Soft-deleted users are retained in the database for auditing; there is no hard-delete or restore
   endpoint.
+- `RowVersion` is an EF concurrency token; concurrent status updates surface as `409 Conflict`
+  (`ConcurrencyConflict`).
 
 ## AI tools used
 
