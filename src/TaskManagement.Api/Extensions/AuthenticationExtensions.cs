@@ -40,6 +40,8 @@ public static class AuthenticationExtensions
                     {
                         context.HandleResponse();
 
+                        context.Response.Headers.WWWAuthenticate = "Bearer";
+
                         await context.Response.WriteProblemDetailsAsync(
                             StatusCodes.Status401Unauthorized,
                             "Unauthorized.",

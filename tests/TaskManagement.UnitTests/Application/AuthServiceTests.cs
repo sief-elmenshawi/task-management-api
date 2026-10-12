@@ -51,6 +51,22 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task RegisterAsync_ReturnsConflict_WhenDatabaseReportsDuplicate()
+    {
+        _users.EmailExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        _passwordHasher.Hash(Arg.Any<string>()).Returns("hashed");
+        _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new DuplicateKeyException("dup", new InvalidOperationException()));
+
+        var result = await CreateSut().RegisterAsync(
+            new RegisterRequest("Jane", "jane@example.com", "Password1", "Password1"));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ErrorType.Conflict);
+        result.Error.Code.Should().Be("EmailAlreadyExists");
+    }
+
+    [Fact]
     public async Task RegisterAsync_ReturnsValidationError_AndSkipsRepository_WhenRequestInvalid()
     {
         var result = await CreateSut().RegisterAsync(

@@ -26,7 +26,11 @@ public static class ModelStateProblemDetails
 
             if (field is null)
             {
-                normalized["request"] = ["A request body is required."];
+                normalized["request"] = [
+                    string.IsNullOrWhiteSpace(key)
+                        ? "A request body is required."
+                        : "The request body is malformed or is not of the expected type."
+                ];
             }
             else
             {

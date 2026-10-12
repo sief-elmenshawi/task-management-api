@@ -142,6 +142,47 @@ public class TaskProcessingWorkerTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RunsStartupRecovery()
+    {
+        var worker = CreateWorker(out var provider);
+        using var _ = provider;
+
+        _tasks.GetPendingAsync(Arg.Any<CancellationToken>()).Returns(new List<Guid>());
+
+        await worker.StartAsync(CancellationToken.None);
+        await worker.StopAsync(CancellationToken.None);
+
+        await _tasks.Received().GetPendingAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProcessWithRetryAsync_Retries_WhenTransientFailureOccurs()
+    {
+        var worker = CreateWorker(out var provider);
+        using var _ = provider;
+
+        var task = new TaskItem("Task", null, TaskPriority.Low, Guid.NewGuid());
+        var attempts = 0;
+        _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                attempts++;
+                if (attempts == 1)
+                {
+                    throw new InvalidOperationException("transient");
+                }
+
+                return task;
+            });
+
+        await worker.ProcessWithRetryAsync(task.Id, CancellationToken.None);
+
+        attempts.Should().Be(2);
+        task.Status.Should().Be(TaskItemStatus.InProgress);
+        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ProcessesAllQueuedTasks_WithMultipleConsumers()
     {
         var worker = CreateWorker(out var provider, concurrency: 3);

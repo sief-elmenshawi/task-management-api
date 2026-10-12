@@ -7,7 +7,6 @@ using TaskManagement.Application.Abstractions;
 using TaskManagement.Application.Authentication.Dtos;
 using TaskManagement.Application.Common;
 using TaskManagement.Domain.Entities;
-using TaskManagement.Domain.Enums;
 using TaskManagement.Domain.Exceptions;
 using TaskManagement.Domain.Repositories;
 
@@ -53,29 +52,22 @@ public sealed class AuthService : IAuthService
         RegisterRequest request,
         CancellationToken cancellationToken = default)
     {
-        var validation = await _registerValidator.ValidateAsync(request, cancellationToken);
-        if (!validation.IsValid)
+        var account = await AccountCreationService.CreateUserAsync(
+            _users,
+            _unitOfWork,
+            _passwordHasher,
+            _registerValidator,
+            request,
+            cancellationToken);
+
+        if (account.IsFailure)
         {
-            return Result.Failure<UserResponse>(validation.ToError());
+            return Result.Failure<UserResponse>(account.Error);
         }
 
-        var email = EmailNormalizer.Normalize(request.Email);
+        _logger.LogInformation("Registered user {UserId}.", account.Value.Id);
 
-        if (await _users.EmailExistsAsync(email, cancellationToken))
-        {
-            return Result.Failure<UserResponse>(
-                Error.Conflict("A user with this email already exists.", "EmailAlreadyExists"));
-        }
-
-        var passwordHash = _passwordHasher.Hash(request.Password);
-        var user = new User(request.Name.Trim(), email, passwordHash, UserRole.User);
-
-        await _users.AddAsync(user, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Registered user {UserId}.", user.Id);
-
-        return Result.Success(ToUserResponse(user));
+        return Result.Success(ToUserResponse(account.Value));
     }
 
     public async Task<Result<AuthResponse>> LoginAsync(

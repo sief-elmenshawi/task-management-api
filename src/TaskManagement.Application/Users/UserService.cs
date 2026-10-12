@@ -1,10 +1,10 @@
 using FluentValidation;
 using TaskManagement.Application.Abstractions;
+using TaskManagement.Application.Authentication;
 using TaskManagement.Application.Authentication.Dtos;
 using TaskManagement.Application.Common;
 using TaskManagement.Application.Users.Dtos;
 using TaskManagement.Domain.Entities;
-using TaskManagement.Domain.Enums;
 using TaskManagement.Domain.Repositories;
 
 namespace TaskManagement.Application.Users;
@@ -44,27 +44,20 @@ public sealed class UserService : IUserService
         RegisterRequest request,
         CancellationToken cancellationToken = default)
     {
-        var validation = await _registerValidator.ValidateAsync(request, cancellationToken);
-        if (!validation.IsValid)
+        var account = await AccountCreationService.CreateUserAsync(
+            _users,
+            _unitOfWork,
+            _passwordHasher,
+            _registerValidator,
+            request,
+            cancellationToken);
+
+        if (account.IsFailure)
         {
-            return Result.Failure<UserAdminResponse>(validation.ToError());
+            return Result.Failure<UserAdminResponse>(account.Error);
         }
 
-        var email = EmailNormalizer.Normalize(request.Email);
-
-        if (await _users.EmailExistsAsync(email, cancellationToken))
-        {
-            return Result.Failure<UserAdminResponse>(
-                Error.Conflict("A user with this email already exists.", "EmailAlreadyExists"));
-        }
-
-        var passwordHash = _passwordHasher.Hash(request.Password);
-        var user = new User(request.Name.Trim(), email, passwordHash, UserRole.User);
-
-        await _users.AddAsync(user, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Success(ToResponse(user));
+        return Result.Success(ToResponse(account.Value));
     }
 
     public async Task<Result> DeleteAsync(

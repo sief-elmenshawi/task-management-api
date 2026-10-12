@@ -7,6 +7,7 @@ using TaskManagement.Application.Common;
 using TaskManagement.Application.Users;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Domain.Enums;
+using TaskManagement.Domain.Exceptions;
 using TaskManagement.Domain.Repositories;
 
 namespace TaskManagement.UnitTests.Application;
@@ -92,5 +93,20 @@ public class UserServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Role.Should().Be("User");
         await _users.Received(1).AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReturnsConflict_WhenDatabaseReportsDuplicate()
+    {
+        _users.EmailExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        _passwordHasher.Hash(Arg.Any<string>()).Returns("hashed");
+        _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<int>(new DuplicateKeyException("dup", new Exception("2601"))));
+
+        var result = await CreateSut().CreateAsync(
+            new RegisterRequest("Jane", "jane@example.com", "Password1", "Password1"));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("EmailAlreadyExists");
     }
 }

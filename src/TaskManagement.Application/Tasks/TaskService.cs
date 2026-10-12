@@ -78,7 +78,7 @@ public sealed class TaskService : ITaskService
             return TaskTitleConflict();
         }
 
-        await _taskQueue.EnqueueAsync(task.Id, cancellationToken);
+        await _taskQueue.EnqueueAsync(task.Id);
 
         _logger.LogInformation("Created task {TaskId} for user {UserId}.", task.Id, userId);
 
@@ -115,7 +115,7 @@ public sealed class TaskService : ITaskService
         }
 
         var response = ToResponse(task);
-        await _cache.SetAsync(cacheKey, response, CacheTtl, cancellationToken);
+        await _cache.SetIfNotExistsAsync(cacheKey, response, CacheTtl, cancellationToken);
 
         return Result.Success(response);
     }
@@ -140,7 +140,7 @@ public sealed class TaskService : ITaskService
             return Result.Failure<TaskResponse>(Error.NotFound("Task not found.", "TaskNotFound"));
         }
 
-        task.ChangeStatus(request.Status);
+        task.ChangeStatus(request.Status!.Value);
 
         try
         {
@@ -154,7 +154,7 @@ public sealed class TaskService : ITaskService
                 Error.Conflict("The task was modified by another operation. Reload and try again.", "ConcurrencyConflict"));
         }
 
-        await _cache.RemoveAsync(TaskCacheKeys.ForTask(userId, taskId), cancellationToken);
+        await _cache.SetAsync(TaskCacheKeys.ForTask(userId, taskId), ToResponse(task), CacheTtl, cancellationToken);
 
         _logger.LogInformation(
             "Updated task {TaskId} status to {Status} for user {UserId}.",

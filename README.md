@@ -37,7 +37,7 @@ Persistence detail: `Priority` is stored as an `int` (while `Status` is stored a
 - .NET 10 / ASP.NET Core Web API (controllers)
 - EF Core + SQL Server (Microsoft.EntityFrameworkCore.SqlServer)
 - Redis (StackExchange.Redis) for cache-aside reads of single tasks
-- A `BackgroundService` that consumes an in-process channel and recovers pending work on startup
+- A `BackgroundService` that consumes an in-process channel and recovers pending work on startup and periodically
 - BCrypt.Net-Next for password hashing
 - FluentValidation
 - Swashbuckle (Swagger)
@@ -167,6 +167,12 @@ files.
 - **Refresh token** - long-lived (`7` days) and single-use. Each `POST /api/auth/refresh` rotates it:
   the presented token is revoked, a replacement is issued, and only a SHA-256 hash of the token is
   stored - the raw value is returned to the client and never persisted.
+- **Password policy** - at least `8` characters containing a letter and a digit, and at most `72`
+  bytes of UTF-8 (BCrypt only hashes the first `72` bytes, so longer input is rejected rather than
+  silently truncated). The same byte limit is enforced on login.
+- **Duplicate email** - `POST /api/auth/register` returns `409 EmailAlreadyExists` when the email is
+  already taken. The check is backed by a filtered unique index, so a concurrent insert that loses
+  the race maps the SQL `2601`/`2627` error to the same `409`.
 - **Reuse detection** - a rotated token is treated as a benign retry while it is within a configurable
   grace window (`RefreshToken:ReuseGraceSeconds`, default `30`; the example `.env` sets
   `REFRESH_TOKEN_REUSE_GRACE_SECONDS=1`). Once the window has elapsed, presenting the rotated token is
@@ -174,9 +180,10 @@ files.
   `401 RefreshTokenReuseDetected`.
 - **Concurrent refreshes** - a SQL Server `rowversion` on the refresh-token row means two simultaneous
   refreshes with the same token cannot both succeed; the losing request gets `401 InvalidRefreshToken`.
-- **Logout** - `POST /api/auth/logout` revokes the presented refresh token.
+- **Logout** - `POST /api/auth/logout` revokes only the presented refresh token, ending that single
+  session; the user's other sessions stay valid.
 - **Deleted users** - users are soft-deleted and excluded from lookups, so a deleted account can no
-  longer log in or refresh.
+  longer log in or refresh; an access token already issued stays valid until it expires.
 
 Known limitation: because the access token is stateless, an access token issued to a user who is then
 deleted stays valid until it expires (at most `15` minutes); tokens are not re-checked against the
@@ -234,9 +241,12 @@ returns `404` rather than `403`, so task ids are not disclosed.
 
 `GET /api/tasks/{id}` uses a cache-aside strategy. The first read loads the task from SQL Server and
 stores it in Redis under `task:{userId}:{taskId}` with a 5-minute TTL (logged at `Debug` as a cache
-miss). Subsequent reads are served from Redis (logged as a cache hit). The entry is evicted when the
-status is changed through the API or by the background worker, so reads never return a stale status.
-If Redis is unreachable, a warning is logged and every read falls back to SQL Server.
+miss). The entry is written with set-if-not-exists, so a concurrent writer's fresher value is never
+overwritten by a slow reader. Subsequent reads are served from Redis (logged as a cache hit). Status
+changes write the updated task through to Redis (and the background worker evicts the entry after it
+moves a task to `InProgress`), so reads never return a stale status. If Redis is unreachable, a
+warning is logged and every read falls back to SQL Server; a failed invalidation is queued in memory
+and retried on the next cache access, so an eviction is not silently lost.
 
 ## Background task processing
 
@@ -246,14 +256,17 @@ Creating a task writes its id to an in-process `Channel<Guid>` (through `ITaskPr
 so that many tasks can be processed at once. Each consumer reads the channel with a new DI scope per
 job, waits 3-5 seconds, and moves the task from `Pending` to `InProgress`, but only when it is still
 `Pending`. It then evicts the task's cache entry. If the task was changed concurrently
-(`DbUpdateConcurrencyException`) it is reloaded and skipped. Each job runs in a try/catch so a single
-failure never stops a consumer, and each loop honors the host's shutdown token.
+(`DbUpdateConcurrencyException`) it is reloaded and skipped. A job that fails with a transient error
+is retried up to three times with a short backoff; a task that never reaches `InProgress` stays
+`Pending` so recovery can pick it up again. Each job runs in a try/catch so a single failure never
+stops a consumer, and each loop honors the host's shutdown token.
 
-**Startup recovery.** When the worker starts it also queries the database for tasks still in
-`Pending` and re-enqueues them, so work that was queued but never processed (for example because the
-process stopped during the 3-5 second delay) resumes automatically. Recovery runs concurrently with
-the read loop and logs the number of recovered tasks. This makes the in-process queue resilient to
-restarts as long as the task was persisted first.
+**Recovery.** When the worker starts it queries the database for tasks still in `Pending` and
+re-enqueues them, then repeats that sweep every `60` seconds while it runs, so work that was queued
+but never processed (for example because the process stopped during the 3-5 second delay, or the
+enqueue was lost) resumes automatically. Recovery runs concurrently with the read loop and logs the
+number of recovered tasks. This makes the in-process queue resilient to restarts as long as the task
+was persisted first.
 
 ## Health checks
 
@@ -350,11 +363,11 @@ limit back to `10`) to observe the `429` response.
 
 ## Bonus items implemented
 
-- Redis cache-aside for `GET /api/tasks/{id}`, with cache eviction on status change and automatic
-  fallback to SQL Server when Redis is unavailable (see [Caching](#caching)).
+- Redis cache-aside for `GET /api/tasks/{id}`, with write-through on status change (the worker evicts)
+  and automatic fallback to SQL Server when Redis is unavailable (see [Caching](#caching)).
 - An in-process background worker (`TaskProcessingWorker`) with `Worker:Concurrency` parallel
-  consumers (default `3`) that moves `Pending` tasks to `InProgress` and recovers pending tasks on
-  startup.
+  consumers (default `3`) that moves `Pending` tasks to `InProgress`, retries transient failures and
+  recovers pending tasks on startup and every `60` seconds.
 - Soft-delete for users: `DELETE` revokes the account's refresh tokens, frees the email for reuse and
   keeps the row for auditing.
 - Refresh-token rotation with hash-only storage, reuse detection (configurable grace window) and a
@@ -367,8 +380,9 @@ limit back to `10`) to observe the `429` response.
 ## Known limitations
 
 - The background queue is in-memory and lives in the API process. Pending tasks are recovered from the
-  database on startup, but a task whose enqueue never persisted (the process died between commit and
-  enqueue) would need a durable broker such as a Redis list or a real message queue.
+  database on startup and every `60` seconds, but a task whose enqueue never persisted (the process
+  died between commit and enqueue) would need a durable broker such as a Redis list or a real message
+  queue.
 - Duplicate titles are scoped per user, per calendar day (UTC), and compared case-insensitively after
   trimming. A unique index on `(UserId, NormalizedTitle, CreatedDate)` enforces this in the database;
   the 2601/2627 SQL errors are mapped to `409`.

@@ -1,3 +1,4 @@
+using System.Text;
 using FluentValidation;
 using TaskManagement.Application.Authentication.Dtos;
 
@@ -20,6 +21,8 @@ public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest
             .NotEmpty().WithMessage("Password is required.")
             .MinimumLength(8).WithMessage("Password must be at least 8 characters long.")
             .MaximumLength(72).WithMessage("Password must not exceed 72 characters.")
+            .Must(password => Encoding.UTF8.GetByteCount(password) <= 72)
+            .WithMessage("Password must not exceed 72 UTF-8 bytes (BCrypt limit).")
             .Matches("[A-Za-z]").WithMessage("Password must contain at least one letter.")
             .Matches("[0-9]").WithMessage("Password must contain at least one digit.");
 

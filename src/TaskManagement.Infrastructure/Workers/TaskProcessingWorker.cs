@@ -17,6 +17,7 @@ public class TaskProcessingWorker : BackgroundService
 {
     private const int MinDelayMilliseconds = 3000;
     private const int MaxDelayMilliseconds = 5000;
+    private static readonly TimeSpan RecoveryInterval = TimeSpan.FromSeconds(60);
 
     private readonly ChannelTaskQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -43,7 +44,7 @@ public class TaskProcessingWorker : BackgroundService
             "Task processing worker started with {Concurrency} consumer(s).",
             concurrency);
 
-        var recovery = RecoverPendingTasksAsync(stoppingToken);
+        var recovery = RunPeriodicRecoveryAsync(stoppingToken);
 
         var consumers = new Task[concurrency];
         for (var index = 0; index < concurrency; index++)
@@ -75,7 +76,7 @@ public class TaskProcessingWorker : BackgroundService
             {
                 try
                 {
-                    await ProcessAsync(taskId, stoppingToken);
+                    await ProcessWithRetryAsync(taskId, stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -93,6 +94,52 @@ public class TaskProcessingWorker : BackgroundService
         }
     }
 
+    private async Task RunPeriodicRecoveryAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await RecoverPendingTasksAsync(stoppingToken);
+
+            using var timer = new PeriodicTimer(RecoveryInterval);
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await RecoverPendingTasksAsync(stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected during host shutdown.
+        }
+    }
+
+    internal async Task ProcessWithRetryAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 3;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                await ProcessAsync(taskId, cancellationToken);
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception) when (attempt < maxAttempts)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Failed to process task {TaskId} on attempt {Attempt}; retrying.",
+                    taskId,
+                    attempt);
+
+                await Task.Delay(TimeSpan.FromMilliseconds(500 * attempt), cancellationToken);
+            }
+        }
+    }
+
     internal async Task RecoverPendingTasksAsync(CancellationToken cancellationToken)
     {
         try
@@ -107,7 +154,7 @@ public class TaskProcessingWorker : BackgroundService
                 await _queue.EnqueueAsync(taskId, cancellationToken);
             }
 
-            _logger.LogInformation("Recovered {Count} pending task(s) after startup.", pending.Count);
+            _logger.LogInformation("Recovered {Count} pending task(s).", pending.Count);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -115,7 +162,7 @@ public class TaskProcessingWorker : BackgroundService
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to recover pending tasks after startup.");
+            _logger.LogError(exception, "Failed to recover pending tasks.");
         }
     }
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
@@ -11,6 +12,7 @@ public sealed class RedisCacheService : ICacheService
 
     private readonly IConnectionMultiplexer _connection;
     private readonly ILogger<RedisCacheService> _logger;
+    private readonly ConcurrentDictionary<string, byte> _pendingInvalidations = new();
 
     public RedisCacheService(IConnectionMultiplexer connection, ILogger<RedisCacheService> logger)
     {
@@ -22,6 +24,8 @@ public sealed class RedisCacheService : ICacheService
     {
         try
         {
+            await FlushPendingInvalidationsAsync();
+
             var database = GetDatabase();
             if (database is null)
             {
@@ -58,6 +62,8 @@ public sealed class RedisCacheService : ICacheService
     {
         try
         {
+            await FlushPendingInvalidationsAsync();
+
             var database = GetDatabase();
             if (database is null)
             {
@@ -65,12 +71,43 @@ public sealed class RedisCacheService : ICacheService
             }
 
             var payload = JsonSerializer.Serialize(value, SerializerOptions);
-            var expiration = expiry is { } ttl ? (Expiration)ttl : Expiration.Default;
-            await database.StringSetAsync(key, payload, expiration);
+            await database.StringSetAsync(key, payload, expiry, When.Always);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, "Failed to write cache key {Key}.", key);
+            _logger.LogWarning(
+                exception,
+                "Failed to write cache key {Key}; the database is still authoritative.",
+                key);
+            _pendingInvalidations.TryAdd(key, default);
+        }
+    }
+
+    public async Task SetIfNotExistsAsync<T>(
+        string key,
+        T value,
+        TimeSpan? expiry = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await FlushPendingInvalidationsAsync();
+
+            var database = GetDatabase();
+            if (database is null)
+            {
+                return;
+            }
+
+            var payload = JsonSerializer.Serialize(value, SerializerOptions);
+            await database.StringSetAsync(key, payload, expiry, When.NotExists);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Failed to populate cache key {Key} if absent; the database is still authoritative.",
+                key);
         }
     }
 
@@ -78,9 +115,12 @@ public sealed class RedisCacheService : ICacheService
     {
         try
         {
+            await FlushPendingInvalidationsAsync();
+
             var database = GetDatabase();
             if (database is null)
             {
+                _pendingInvalidations.TryAdd(key, default);
                 return;
             }
 
@@ -88,29 +128,46 @@ public sealed class RedisCacheService : ICacheService
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, "Failed to evict cache key {Key}.", key);
+            _logger.LogWarning(
+                exception,
+                "Failed to delete cache key {Key}; the database is still authoritative.",
+                key);
+            _pendingInvalidations.TryAdd(key, default);
         }
     }
 
-    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
-    {
-        if (!_connection.IsConnected)
-        {
-            return false;
-        }
-
-        try
-        {
-            await _connection.GetDatabase().PingAsync();
-            return true;
-        }
-        catch (Exception exception)
-        {
-            _logger.LogWarning(exception, "Redis health check failed.");
-            return false;
-        }
-    }
+    public Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(_connection.IsConnected);
 
     private IDatabase? GetDatabase() =>
         _connection.IsConnected ? _connection.GetDatabase() : null;
+
+    private async Task FlushPendingInvalidationsAsync()
+    {
+        if (_pendingInvalidations.IsEmpty)
+        {
+            return;
+        }
+
+        var database = GetDatabase();
+        if (database is null)
+        {
+            return;
+        }
+
+        foreach (var key in _pendingInvalidations.Keys)
+        {
+            try
+            {
+                if (await database.KeyDeleteAsync(key))
+                {
+                    _pendingInvalidations.TryRemove(key, out _);
+                }
+            }
+            catch (Exception exception)
+            {
+                _logger.LogDebug(exception, "Pending cache invalidation for {Key} failed; will retry.", key);
+            }
+        }
+    }
 }

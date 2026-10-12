@@ -21,7 +21,7 @@ public class ModelStateProblemDetailsTests
     }
 
     [Fact]
-    public void Create_ReturnsRequestBodyRequired_WhenBodyCannotBeParsed()
+    public void Create_ReturnsMalformedBody_WhenBodyCannotBeParsed()
     {
         var modelState = new ModelStateDictionary();
         modelState.AddModelError("$", "The JSON value could not be converted to RegisterRequest.");
@@ -29,6 +29,8 @@ public class ModelStateProblemDetailsTests
         var errors = Errors(ModelStateProblemDetails.Create(modelState));
 
         errors.Should().ContainKey("request");
+        errors["request"].Should().ContainSingle()
+            .Which.Should().Be("The request body is malformed or is not of the expected type.");
     }
 
     [Fact]

@@ -116,7 +116,7 @@ public class TaskServiceTests
         var result = await CreateSut().GetByIdAsync(userId, task.Id);
 
         result.IsSuccess.Should().BeTrue();
-        await _cache.Received(1).SetAsync(
+        await _cache.Received(1).SetIfNotExistsAsync(
             TaskCacheKeys.ForTask(userId, task.Id),
             Arg.Any<TaskResponse>(),
             Arg.Any<TimeSpan?>(),
@@ -137,12 +137,12 @@ public class TaskServiceTests
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("TaskNotFound");
-        await _cache.DidNotReceive().SetAsync(
+        await _cache.DidNotReceive().SetIfNotExistsAsync(
             Arg.Any<string>(), Arg.Any<TaskResponse>(), Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task UpdateStatusAsync_EvictsCache_WhenStatusChanged()
+    public async Task UpdateStatusAsync_WritesThroughCache_WhenStatusChanged()
     {
         var userId = Guid.NewGuid();
         var task = new TaskItem("Task", null, TaskPriority.Low, userId);
@@ -153,7 +153,11 @@ public class TaskServiceTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Status.Should().Be(TaskItemStatus.Done);
-        await _cache.Received(1).RemoveAsync(TaskCacheKeys.ForTask(userId, task.Id), Arg.Any<CancellationToken>());
+        await _cache.Received(1).SetAsync(
+            TaskCacheKeys.ForTask(userId, task.Id),
+            Arg.Is<TaskResponse>(response => response.Status == TaskItemStatus.Done),
+            Arg.Any<TimeSpan?>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -170,7 +174,22 @@ public class TaskServiceTests
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("ConcurrencyConflict");
-        await _cache.DidNotReceive().RemoveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<TaskResponse>(), Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ReturnsValidationError_WhenStatusNotProvided()
+    {
+        var userId = Guid.NewGuid();
+        var task = new TaskItem("Task", null, TaskPriority.Low, userId);
+        _tasks.GetByIdForUserAsync(task.Id, userId, Arg.Any<CancellationToken>()).Returns(task);
+
+        var result = await CreateSut().UpdateStatusAsync(
+            userId, task.Id, new UpdateTaskStatusRequest(null));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("ValidationFailed");
+        await _tasks.DidNotReceive().GetByIdForUserAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
