@@ -45,7 +45,6 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
-      ASPNETCORE_URLS: "http://+:8080"
       Logging__LogLevel__Microsoft.EntityFrameworkCore: "Warning"
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: "Warning"
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=TaskManagement;User Id=sa;Password=${SA_PASSWORD:-TaskManager@2026};TrustServerCertificate=True;MultipleActiveResultSets=True"

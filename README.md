@@ -70,6 +70,10 @@ on port `8080` inside the container; the host port comes from `API_PORT` in `.en
 `.env` must define `JWT_KEY`; Compose fails fast if it is missing. Copy `.env.example` to get all of
 the required values with working local defaults.
 
+A `429 Too Many Requests` response means the auth rate limit was reached - wait 60 seconds (the
+default window) before retrying. The Postman/Newman run raises the limit; see
+[Postman collection](#postman-collection).
+
 ## How to try it in Swagger
 
 1. Log in with the seeded admin account (`admin@example.com` / `Admin@123`).
@@ -149,6 +153,10 @@ files.
   `Retry-After` header and an `application/problem+json` body (`code: TooManyRequests`). Compose sets
   it from `RATE_LIMIT_AUTH_PERMIT` and `RATE_LIMIT_AUTH_WINDOW` (or
   `RateLimiting__Auth__PermitLimit`/`RateLimiting__Auth__WindowSeconds` directly).
+- `RefreshToken:ReuseGraceSeconds` - window (seconds) in which a just-rotated refresh token is treated
+  as a benign retry rather than a reuse attack (default `30`). Compose reads it from
+  `REFRESH_TOKEN_REUSE_GRACE_SECONDS`; the example `.env` lowers it to `1` so the Postman reuse
+  scenario can wait past the window.
 
 ## Endpoints
 
@@ -257,7 +265,8 @@ All errors are returned as RFC 7807 ProblemDetails.
 - Unhandled exceptions pass through `ExceptionHandlingMiddleware`, which maps domain exceptions to
   `4xx` and everything else to a generic `500` ProblemDetails (`code: InternalServerError`) without
   leaking internal details. If the response has already started it logs and does not attempt to
-  rewrite it.
+  rewrite it. A request cancelled by the client (the connection closes mid-flight) is answered with
+  `499` and no body.
 
 ## Tests
 

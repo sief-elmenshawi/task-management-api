@@ -62,7 +62,13 @@ if (swaggerEnabled)
     app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
 
-app.UseHttpsRedirection();
+var httpsConfigured = builder.Configuration["ASPNETCORE_HTTPS_PORT"] is not null
+    || (builder.Configuration["ASPNETCORE_URLS"]?.Contains("https://", StringComparison.OrdinalIgnoreCase) ?? false);
+
+if (httpsConfigured)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors("Default");
 
