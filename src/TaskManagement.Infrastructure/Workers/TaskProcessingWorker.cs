@@ -67,7 +67,7 @@ public class TaskProcessingWorker : BackgroundService
 
     private async Task ConsumeAsync(CancellationToken stoppingToken)
     {
-        var reader = _queue.Reader(TaskQueues.TaskProcessing);
+        var reader = _queue.Reader;
 
         try
         {
@@ -104,7 +104,7 @@ public class TaskProcessingWorker : BackgroundService
 
             foreach (var task in pending)
             {
-                await _queue.EnqueueAsync(TaskQueues.TaskProcessing, task.Id, cancellationToken);
+                await _queue.EnqueueAsync(task.Id, cancellationToken);
             }
 
             _logger.LogInformation("Recovered {Count} pending task(s) after startup.", pending.Count);

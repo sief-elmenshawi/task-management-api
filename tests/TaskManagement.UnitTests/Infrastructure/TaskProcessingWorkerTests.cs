@@ -135,7 +135,7 @@ public class TaskProcessingWorkerTests
 
         await worker.RecoverPendingTasksAsync(CancellationToken.None);
 
-        var reader = _queue.Reader(TaskQueues.TaskProcessing);
+        var reader = _queue.Reader;
         var recovered = new List<Guid>();
         while (reader.TryRead(out var id))
         {
@@ -166,7 +166,7 @@ public class TaskProcessingWorkerTests
 
         foreach (var task in tasks)
         {
-            await _queue.EnqueueAsync(TaskQueues.TaskProcessing, task.Id);
+            await _queue.EnqueueAsync(task.Id);
         }
 
         await WaitUntilAsync(

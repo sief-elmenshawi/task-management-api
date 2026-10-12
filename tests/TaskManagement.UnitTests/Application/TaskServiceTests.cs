@@ -18,7 +18,7 @@ public class TaskServiceTests
     private readonly ITaskRepository _tasks = Substitute.For<ITaskRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly ICacheService _cache = Substitute.For<ICacheService>();
-    private readonly ITaskQueue _taskQueue = Substitute.For<ITaskQueue>();
+    private readonly ITaskProcessingQueue _taskQueue = Substitute.For<ITaskProcessingQueue>();
 
     private TaskService CreateSut() => new(
         _tasks,
@@ -42,7 +42,7 @@ public class TaskServiceTests
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("TaskTitleDuplicate");
         await _taskQueue.DidNotReceive().EnqueueAsync(
-            Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -60,12 +60,12 @@ public class TaskServiceTests
         result.Value.Status.Should().Be(TaskItemStatus.Pending);
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         await _taskQueue.Received(1).EnqueueAsync(
-            TaskQueues.TaskProcessing, result.Value.Id, Arg.Any<CancellationToken>());
+            result.Value.Id, Arg.Any<CancellationToken>());
 
         Received.InOrder(() =>
         {
             _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>());
-            _taskQueue.EnqueueAsync(TaskQueues.TaskProcessing, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+            _taskQueue.EnqueueAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         });
     }
 
@@ -85,7 +85,7 @@ public class TaskServiceTests
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("TaskTitleDuplicate");
         await _taskQueue.DidNotReceive().EnqueueAsync(
-            Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

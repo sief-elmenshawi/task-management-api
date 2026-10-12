@@ -1,32 +1,21 @@
-using System.Collections.Concurrent;
 using System.Threading.Channels;
 using TaskManagement.Application.Abstractions;
 
 namespace TaskManagement.Infrastructure.Queues;
 
-public sealed class ChannelTaskQueue : ITaskQueue
+public sealed class ChannelTaskQueue : ITaskProcessingQueue
 {
     private const int Capacity = 1000;
 
-    private readonly ConcurrentDictionary<string, Channel<Guid>> _channels = new();
-
-    public async Task EnqueueAsync<T>(string queueName, T message, CancellationToken cancellationToken = default)
+    private readonly Channel<Guid> _channel = Channel.CreateBounded<Guid>(new BoundedChannelOptions(Capacity)
     {
-        if (message is not Guid id)
-        {
-            throw new InvalidOperationException($"{nameof(ChannelTaskQueue)} only supports Guid messages.");
-        }
+        SingleReader = false,
+        SingleWriter = false,
+        FullMode = BoundedChannelFullMode.Wait
+    });
 
-        await GetChannel(queueName).Writer.WriteAsync(id, cancellationToken);
-    }
+    public ChannelReader<Guid> Reader => _channel.Reader;
 
-    public ChannelReader<Guid> Reader(string queueName) => GetChannel(queueName).Reader;
-
-    private Channel<Guid> GetChannel(string queueName) =>
-        _channels.GetOrAdd(queueName, static _ => Channel.CreateBounded<Guid>(new BoundedChannelOptions(Capacity)
-        {
-            SingleReader = false,
-            SingleWriter = false,
-            FullMode = BoundedChannelFullMode.Wait
-        }));
+    public ValueTask EnqueueAsync(Guid taskId, CancellationToken cancellationToken = default) =>
+        _channel.Writer.WriteAsync(taskId, cancellationToken);
 }

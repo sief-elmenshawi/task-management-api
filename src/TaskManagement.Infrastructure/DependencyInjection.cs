@@ -55,7 +55,7 @@ public static class DependencyInjection
             provider.GetRequiredService<ILogger<RedisCacheService>>()));
 
         services.AddSingleton<ChannelTaskQueue>();
-        services.AddSingleton<ITaskQueue>(provider => provider.GetRequiredService<ChannelTaskQueue>());
+        services.AddSingleton<ITaskProcessingQueue>(provider => provider.GetRequiredService<ChannelTaskQueue>());
 
         services.AddOptions<WorkerOptions>()
             .Bind(configuration.GetSection(WorkerOptions.SectionName))

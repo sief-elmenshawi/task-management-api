@@ -16,7 +16,7 @@ public sealed class TaskService : ITaskService
     private readonly ITaskRepository _tasks;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICacheService _cache;
-    private readonly ITaskQueue _taskQueue;
+    private readonly ITaskProcessingQueue _taskQueue;
     private readonly IValidator<CreateTaskRequest> _createValidator;
     private readonly IValidator<UpdateTaskStatusRequest> _statusValidator;
     private readonly ILogger<TaskService> _logger;
@@ -25,7 +25,7 @@ public sealed class TaskService : ITaskService
         ITaskRepository tasks,
         IUnitOfWork unitOfWork,
         ICacheService cache,
-        ITaskQueue taskQueue,
+        ITaskProcessingQueue taskQueue,
         IValidator<CreateTaskRequest> createValidator,
         IValidator<UpdateTaskStatusRequest> statusValidator,
         ILogger<TaskService> logger)
@@ -81,7 +81,7 @@ public sealed class TaskService : ITaskService
             return TaskTitleConflict();
         }
 
-        await _taskQueue.EnqueueAsync(TaskQueues.TaskProcessing, task.Id, cancellationToken);
+        await _taskQueue.EnqueueAsync(task.Id, cancellationToken);
 
         _logger.LogInformation("Created task {TaskId} for user {UserId}.", task.Id, userId);
 
