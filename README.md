@@ -143,6 +143,12 @@ files.
 - `Worker:Concurrency` - number of background-worker consumers that process queued tasks in parallel
   (default `3`, minimum `1`; validated at startup). The Compose service sets it from
   `WORKER_CONCURRENCY`, so `WORKER_CONCURRENCY=6` in `.env` runs six parallel consumers.
+- `RateLimiting:Auth` - fixed-window rate limit for `POST /api/auth/register`, `/api/auth/login` and
+  `/api/auth/refresh`, partitioned by client IP address. `PermitLimit` (default `10`) requests are
+  allowed per `WindowSeconds` (default `60`); the next request gets `429 Too Many Requests` with a
+  `Retry-After` header and an `application/problem+json` body (`code: TooManyRequests`). Compose sets
+  it from `RATE_LIMIT_AUTH_PERMIT` and `RATE_LIMIT_AUTH_WINDOW` (or
+  `RateLimiting__Auth__PermitLimit`/`RateLimiting__Auth__WindowSeconds` directly).
 
 ## Endpoints
 
@@ -257,6 +263,24 @@ dotnet test
 
 They use NSubstitute for collaborators and FluentAssertions for assertions, and require no external
 services.
+
+### Postman collection
+
+`postman/TaskManagement.postman_collection.json` (with
+`postman/TaskManagement.postman_environment.json`) exercises the whole API. It drives more than ten
+auth calls (`register`, `login`, `refresh`) in well under a minute, which exceeds the default auth
+rate limit of `10` per `60s`, so raise the limit for the run before starting the stack:
+
+```bash
+RATE_LIMIT_AUTH_PERMIT=1000 RATE_LIMIT_AUTH_WINDOW=60 docker compose up -d --build
+npx newman run postman/TaskManagement.postman_collection.json \
+  -e postman/TaskManagement.postman_environment.json
+```
+
+`RATE_LIMIT_AUTH_PERMIT` is the `RateLimiting__Auth__PermitLimit` environment variable that
+`docker-compose.yml` forwards to the API (see [Configuration](#configuration)); the value is also
+documented in `.env.example`, which is the easiest place to set it. Run the stack without the
+override (or set the permit limit back to `10`) to observe the `429` response.
 
 ## Assumptions and known limitations
 
