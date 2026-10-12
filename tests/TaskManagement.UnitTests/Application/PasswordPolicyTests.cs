@@ -63,4 +63,23 @@ public class PasswordPolicyTests
 
         result.IsValid.Should().BeTrue();
     }
+
+    [Fact]
+    public void Register_PartialRequestWithMissingPassword_DoesNotThrow()
+    {
+        var result = _registerValidator.Validate(
+            new RegisterRequest(null!, "jane@example.com", null!, null!));
+
+        result.Errors.Should().Contain(error =>
+            error.ErrorMessage == "Password is required.");
+    }
+
+    [Fact]
+    public void Login_PartialRequestWithMissingPassword_DoesNotThrow()
+    {
+        var result = _loginValidator.Validate(new LoginRequest("jane@example.com", null!));
+
+        result.Errors.Should().Contain(error =>
+            error.ErrorMessage == "Password is required.");
+    }
 }

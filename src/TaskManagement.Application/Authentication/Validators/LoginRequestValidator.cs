@@ -14,7 +14,7 @@ public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
 
         RuleFor(x => x.Password)
             .NotEmpty().WithMessage("Password is required.")
-            .Must(password => Encoding.UTF8.GetByteCount(password) <= 72)
+            .Must(password => string.IsNullOrEmpty(password) || Encoding.UTF8.GetByteCount(password) <= 72)
             .WithMessage("Password must not exceed 72 bytes (UTF-8).");
     }
 }
