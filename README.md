@@ -161,6 +161,28 @@ files.
   `REFRESH_TOKEN_REUSE_GRACE_SECONDS`; the example `.env` lowers it to `1` so the Postman reuse
   scenario can wait past the window.
 
+## Authentication flow
+
+- **Access token** - a short-lived JWT, valid for `15` minutes (`JwtSettings:ExpiryMinutes`). It is
+  self-contained, so the API trusts it until it expires without checking the database per request.
+- **Refresh token** - long-lived (`7` days) and single-use. Each `POST /api/auth/refresh` rotates it:
+  the presented token is revoked, a replacement is issued, and only a SHA-256 hash of the token is
+  stored - the raw value is returned to the client and never persisted.
+- **Reuse detection** - a rotated token is treated as a benign retry while it is within a configurable
+  grace window (`RefreshToken:ReuseGraceSeconds`, default `30`; the example `.env` sets
+  `REFRESH_TOKEN_REUSE_GRACE_SECONDS=1`). Once the window has elapsed, presenting the rotated token is
+  treated as theft: all of the user's active refresh tokens are revoked and the response is
+  `401 RefreshTokenReuseDetected`.
+- **Concurrent refreshes** - a SQL Server `rowversion` on the refresh-token row means two simultaneous
+  refreshes with the same token cannot both succeed; the losing request gets `401 InvalidRefreshToken`.
+- **Logout** - `POST /api/auth/logout` revokes the presented refresh token.
+- **Deleted users** - users are soft-deleted and excluded from lookups, so a deleted account can no
+  longer log in or refresh.
+
+Known limitation: because the access token is stateless, an access token issued to a user who is then
+deleted stays valid until it expires (at most `15` minutes); tokens are not re-checked against the
+database on every request.
+
 ## Endpoints
 
 Enum values (`status`, `priority`, `role`) are accepted and returned as names
