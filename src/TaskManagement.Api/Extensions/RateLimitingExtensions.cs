@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -34,11 +35,16 @@ public static class RateLimitingExtensions
             });
 
             options.OnRejected = async (context, cancellationToken) =>
+            {
+                context.HttpContext.Response.Headers.RetryAfter =
+                    windowSeconds.ToString(CultureInfo.InvariantCulture);
+
                 await context.HttpContext.Response.WriteProblemDetailsAsync(
                     StatusCodes.Status429TooManyRequests,
                     "Too many requests.",
                     "Too many requests. Please try again later.",
                     "TooManyRequests");
+            };
         });
 
         return services;
