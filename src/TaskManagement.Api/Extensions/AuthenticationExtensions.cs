@@ -40,7 +40,9 @@ public static class AuthenticationExtensions
                     {
                         context.HandleResponse();
 
-                        context.Response.Headers.WWWAuthenticate = "Bearer";
+                        context.Response.Headers.WWWAuthenticate = context.AuthenticateFailure is null
+                            ? "Bearer"
+                            : "Bearer error=\"invalid_token\"";
 
                         await context.Response.WriteProblemDetailsAsync(
                             StatusCodes.Status401Unauthorized,
