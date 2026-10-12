@@ -326,23 +326,28 @@ dotnet test
 They use NSubstitute for collaborators and FluentAssertions for assertions, and require no external
 services.
 
-### Postman collection
+## Postman / Newman
 
-`postman/TaskManagement.postman_collection.json` (with
-`postman/TaskManagement.postman_environment.json`) exercises the whole API. It drives more than ten
-auth calls (`register`, `login`, `refresh`) in well under a minute, which exceeds the default auth
-rate limit of `10` per `60s`, so raise the limit for the run before starting the stack:
+The collection and environment live in `postman/`:
+`postman/TaskManagement.postman_collection.json` and
+`postman/TaskManagement.postman_environment.json`. Run it with `npx newman` (no global install
+required). The collection drives more than ten auth calls (`register`, `login`, `refresh`) in well
+under a minute, which exceeds the default auth rate limit of `10` per `60s`, so raise the limit and
+lower the reuse grace window before starting the stack:
 
 ```bash
-RATE_LIMIT_AUTH_PERMIT=1000 RATE_LIMIT_AUTH_WINDOW=60 docker compose up -d --build
+RATE_LIMIT_AUTH_PERMIT=1000 RATE_LIMIT_AUTH_WINDOW=60 REFRESH_TOKEN_REUSE_GRACE_SECONDS=1 \
+  docker compose up -d --build
 npx newman run postman/TaskManagement.postman_collection.json \
   -e postman/TaskManagement.postman_environment.json
 ```
 
-`RATE_LIMIT_AUTH_PERMIT` is the `RateLimiting__Auth__PermitLimit` environment variable that
-`docker-compose.yml` forwards to the API (see [Configuration](#configuration)); the value is also
-documented in `.env.example`, which is the easiest place to set it. Run the stack without the
-override (or set the permit limit back to `10`) to observe the `429` response.
+Both overrides are already the committed defaults in `.env.example`, which is the easiest place to
+set them. `RATE_LIMIT_AUTH_PERMIT` is the `RateLimiting__Auth__PermitLimit` environment variable and
+`REFRESH_TOKEN_REUSE_GRACE_SECONDS` is `RefreshToken__ReuseGraceSeconds`; `docker-compose.yml`
+forwards both to the API (see [Configuration](#configuration)). The lowered grace window lets the
+`AUTH-11` refresh-reuse scenario wait past it. Run the stack without the overrides (or set the permit
+limit back to `10`) to observe the `429` response.
 
 ## Assumptions and known limitations
 
