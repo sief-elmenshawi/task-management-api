@@ -364,3 +364,9 @@ limit back to `10`) to observe the `429` response.
 - Soft-deleted users are retained in the database for auditing; there is no hard-delete or restore
   endpoint.
 
+## AI tools used
+
+OpenCode was used to generate code from detailed prompts written by the author (architecture,
+requirements and conventions). Every change was reviewed, tested (unit tests, Postman/Newman and
+manual Swagger checks) and understood before it was kept.
+
