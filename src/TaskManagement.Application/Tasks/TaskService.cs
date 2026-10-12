@@ -50,20 +50,17 @@ public sealed class TaskService : ITaskService
             return Result.Failure<TaskResponse>(validation.ToError());
         }
 
-        var normalizedTitle = request.Title.Trim().ToUpperInvariant();
-        var createdDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var task = new TaskItem(request.Title, request.Description, request.Priority, userId);
 
-        if (await _tasks.ExistsForUserOnDateAsync(userId, normalizedTitle, createdDate, cancellationToken))
+        if (await _tasks.ExistsForUserOnDateAsync(userId, task.NormalizedTitle, task.CreatedDate, cancellationToken))
         {
             _logger.LogInformation(
                 "Rejected duplicate task title for user {UserId} on {CreatedDate}.",
                 userId,
-                createdDate);
+                task.CreatedDate);
 
             return TaskTitleConflict();
         }
-
-        var task = new TaskItem(request.Title, request.Description, request.Priority, userId);
 
         await _tasks.AddAsync(task, cancellationToken);
 
@@ -76,7 +73,7 @@ public sealed class TaskService : ITaskService
             _logger.LogInformation(
                 "Rejected duplicate task title for user {UserId} on {CreatedDate} (database constraint).",
                 userId,
-                createdDate);
+                task.CreatedDate);
 
             return TaskTitleConflict();
         }
