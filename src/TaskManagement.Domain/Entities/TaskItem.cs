@@ -34,15 +34,6 @@ public class TaskItem
         UserId = userId;
     }
 
-    public void Update(string title, string? description, TaskItemStatus status, TaskPriority priority)
-    {
-        Title = title.Trim();
-        NormalizedTitle = Normalize(title);
-        Description = description;
-        Status = status;
-        Priority = priority;
-    }
-
     public void ChangeStatus(TaskItemStatus status) => Status = status;
 
     private static string Normalize(string title) => title.Trim().ToUpperInvariant();

@@ -14,5 +14,4 @@ public interface ITaskRepository
     Task<IReadOnlyList<TaskItem>> GetPendingAsync(CancellationToken cancellationToken = default);
     Task AddAsync(TaskItem task, CancellationToken cancellationToken = default);
     void Update(TaskItem task);
-    void Remove(TaskItem task);
 }

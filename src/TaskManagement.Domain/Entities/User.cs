@@ -30,10 +30,6 @@ public class User
         CreatedAt = DateTime.UtcNow;
     }
 
-    public void ChangePasswordHash(string passwordHash) => PasswordHash = passwordHash;
-
-    public void ChangeRole(UserRole role) => Role = role;
-
     public void MarkAsDeleted()
     {
         if (IsDeleted)

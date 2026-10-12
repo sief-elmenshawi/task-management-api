@@ -67,12 +67,8 @@ public sealed class ExceptionHandlingMiddleware
 
     private static (int StatusCode, string Title, string Code) MapException(Exception exception) => exception switch
     {
-        NotFoundException => (StatusCodes.Status404NotFound, "Resource not found.", "NotFound"),
-        ConflictException => (StatusCodes.Status409Conflict, "A conflict occurred.", "Conflict"),
         ConcurrencyException => (StatusCodes.Status409Conflict, "A conflict occurred.", "ConcurrencyConflict"),
         DuplicateKeyException => (StatusCodes.Status409Conflict, "A conflict occurred.", "DuplicateKey"),
-        ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden.", "Forbidden"),
-        DomainException => (StatusCodes.Status400BadRequest, "One or more validation errors occurred.", "DomainRuleViolation"),
         _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", "InternalServerError")
     };
 }
