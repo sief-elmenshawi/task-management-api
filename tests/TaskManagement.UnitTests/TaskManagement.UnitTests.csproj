@@ -22,9 +22,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\TaskManagement.Api\TaskManagement.Api.csproj" />
     <ProjectReference Include="..\..\src\TaskManagement.Application\TaskManagement.Application.csproj" />
     <ProjectReference Include="..\..\src\TaskManagement.Infrastructure\TaskManagement.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\TaskManagement.Domain\TaskManagement.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>

@@ -10,21 +10,27 @@ public static class ModelStateProblemDetails
     public static ProblemDetails Create(ModelStateDictionary modelState)
     {
         var errors = CollectErrors(modelState);
-        var hasPropertyError = errors.Keys.Any(key => MapProperty(key) is not null);
-
         var normalized = new Dictionary<string, string[]>();
 
-        foreach (var (key, messages) in errors)
+        foreach (var (key, _) in errors)
         {
             var property = MapProperty(key);
 
             if (property is not null)
             {
                 normalized[property] = [MessageFor(property)];
+                continue;
             }
-            else if (!hasPropertyError)
+
+            var field = MapField(key);
+
+            if (field is null)
             {
                 normalized["request"] = ["A request body is required."];
+            }
+            else
+            {
+                normalized[field] = [$"The value of '{field}' is invalid."];
             }
         }
 
@@ -91,6 +97,32 @@ public static class ModelStateProblemDetails
 
         return null;
     }
+
+    private static string? MapField(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key) || key == "$")
+        {
+            return null;
+        }
+
+        var field = key.StartsWith("$.", StringComparison.Ordinal)
+            ? key[2..]
+            : key;
+
+        var lastSegment = field.Split('.')[^1];
+
+        if (lastSegment.Length == 0 || lastSegment == "$")
+        {
+            return null;
+        }
+
+        return ToCamelCase(lastSegment);
+    }
+
+    private static string ToCamelCase(string value) =>
+        char.IsUpper(value[0])
+            ? string.Concat(char.ToLowerInvariant(value[0]), value[1..])
+            : value;
 
     private static string MessageFor(string property) => property switch
     {

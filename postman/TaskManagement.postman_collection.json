@@ -244,6 +244,90 @@
           ]
         },
         {
+          "name": "AUTH-05b register with partial body -> 400 per-field errors",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"partial@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('AUTH-05b status is 400', function () { pm.response.to.have.status(400); });",
+                  "const b = pm.response.json();",
+                  "pm.test('AUTH-05b validates the missing fields individually', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
+                  "  pm.expect(b.errors).to.have.property('Name');",
+                  "  pm.expect(b.errors).to.have.property('Password');",
+                  "  pm.expect(b.errors).to.not.have.property('request');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "AUTH-05c register with empty body -> 400 request body required",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('AUTH-05c status is 400', function () { pm.response.to.have.status(400); });",
+                  "const b = pm.response.json();",
+                  "pm.test('AUTH-05c reports the request body is required', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
+                  "  pm.expect(b.errors).to.have.property('request');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "AUTH-06 login with wrong password -> 401",
           "request": {
             "method": "POST",
@@ -1643,6 +1727,56 @@
                   "pm.test('TASKS-08 exposes a readable priority error', function () {",
                   "  pm.expect(b.errors).to.have.property('priority');",
                   "  pm.expect(b.errors.priority.join(' ')).to.include('Invalid value. Allowed values: Low, Medium, High.');",
+                  "  pm.expect(b.errors).to.not.have.property('request');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "TASKS-08b create task with wrong title type -> 400 invalid title",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userAToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": 123,\n  \"priority\": \"Low\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('TASKS-08b status is 400', function () { pm.response.to.have.status(400); });",
+                  "const b = pm.response.json();",
+                  "pm.test('TASKS-08b maps the wrong type to a title error', function () {",
+                  "  pm.expect(b.code).to.eql('ValidationFailed');",
+                  "  pm.expect(b.errors).to.have.property('title');",
+                  "  pm.expect(b.errors.title.join(' ')).to.include(\"The value of 'title' is invalid.\");",
                   "  pm.expect(b.errors).to.not.have.property('request');",
                   "});"
                 ]

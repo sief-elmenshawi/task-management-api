@@ -10,7 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddLocalConfiguration(builder.Environment);
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(options =>
+    {
+        options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+    })
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
     .ConfigureApiBehaviorOptions(options =>
