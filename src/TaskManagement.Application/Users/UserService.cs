@@ -87,16 +87,10 @@ public sealed class UserService : IUserService
         var activeTokens = await _refreshTokens.GetActiveByUserIdAsync(userId, cancellationToken);
 
         user.MarkAsDeleted();
-        _users.Update(user);
 
         foreach (var token in activeTokens)
         {
             token.Revoke();
-        }
-
-        if (activeTokens.Count > 0)
-        {
-            _refreshTokens.UpdateRange(activeTokens);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

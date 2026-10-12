@@ -111,7 +111,7 @@ public class TaskServiceTests
         var task = new TaskItem("Task", null, TaskPriority.Low, userId);
         _cache.GetAsync<TaskResponse>(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((TaskResponse?)null);
-        _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(task);
+        _tasks.GetByIdForUserAsync(task.Id, userId, Arg.Any<CancellationToken>()).Returns(task);
 
         var result = await CreateSut().GetByIdAsync(userId, task.Id);
 
@@ -130,7 +130,8 @@ public class TaskServiceTests
         var task = new TaskItem("Task", null, TaskPriority.Low, Guid.NewGuid());
         _cache.GetAsync<TaskResponse>(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((TaskResponse?)null);
-        _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(task);
+        _tasks.GetByIdForUserAsync(task.Id, currentUser, Arg.Any<CancellationToken>())
+            .Returns((TaskItem?)null);
 
         var result = await CreateSut().GetByIdAsync(currentUser, task.Id);
 
@@ -145,7 +146,7 @@ public class TaskServiceTests
     {
         var userId = Guid.NewGuid();
         var task = new TaskItem("Task", null, TaskPriority.Low, userId);
-        _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(task);
+        _tasks.GetByIdForUserAsync(task.Id, userId, Arg.Any<CancellationToken>()).Returns(task);
 
         var result = await CreateSut().UpdateStatusAsync(
             userId, task.Id, new UpdateTaskStatusRequest(TaskItemStatus.Done));
@@ -160,7 +161,7 @@ public class TaskServiceTests
     {
         var userId = Guid.NewGuid();
         var task = new TaskItem("Task", null, TaskPriority.Low, userId);
-        _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(task);
+        _tasks.GetByIdForUserAsync(task.Id, userId, Arg.Any<CancellationToken>()).Returns(task);
         _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromException<int>(new ConcurrencyException("conflict", new Exception("rowversion"))));
 
@@ -176,7 +177,8 @@ public class TaskServiceTests
     public async Task UpdateStatusAsync_ReturnsNotFound_WhenOwnedByAnotherUser()
     {
         var task = new TaskItem("Task", null, TaskPriority.Low, Guid.NewGuid());
-        _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(task);
+        _tasks.GetByIdForUserAsync(task.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((TaskItem?)null);
 
         var result = await CreateSut().UpdateStatusAsync(
             Guid.NewGuid(), task.Id, new UpdateTaskStatusRequest(TaskItemStatus.Done));

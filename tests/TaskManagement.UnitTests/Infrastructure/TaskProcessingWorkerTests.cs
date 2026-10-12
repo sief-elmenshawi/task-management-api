@@ -126,11 +126,7 @@ public class TaskProcessingWorkerTests
         var worker = CreateWorker(out var provider);
         using var _ = provider;
 
-        var pending = new List<TaskItem>
-        {
-            new("First", null, TaskPriority.Low, Guid.NewGuid()),
-            new("Second", null, TaskPriority.High, Guid.NewGuid())
-        };
+        var pending = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() };
         _tasks.GetPendingAsync(Arg.Any<CancellationToken>()).Returns(pending);
 
         await worker.RecoverPendingTasksAsync(CancellationToken.None);
@@ -142,7 +138,7 @@ public class TaskProcessingWorkerTests
             recovered.Add(id);
         }
 
-        recovered.Should().BeEquivalentTo(new[] { pending[0].Id, pending[1].Id });
+        recovered.Should().BeEquivalentTo(pending);
     }
 
     [Fact]
@@ -151,7 +147,7 @@ public class TaskProcessingWorkerTests
         var worker = CreateWorker(out var provider, concurrency: 3);
         using var _ = provider;
 
-        _tasks.GetPendingAsync(Arg.Any<CancellationToken>()).Returns(new List<TaskItem>());
+        _tasks.GetPendingAsync(Arg.Any<CancellationToken>()).Returns(new List<Guid>());
 
         var tasks = Enumerable.Range(0, 3)
             .Select(index => new TaskItem($"Task {index}", null, TaskPriority.Low, Guid.NewGuid()))

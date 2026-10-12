@@ -64,9 +64,7 @@ public class UserServiceTests
 
         result.IsSuccess.Should().BeTrue();
         user.IsDeleted.Should().BeTrue();
-        _users.Received(1).Update(user);
         activeToken.IsRevoked.Should().BeTrue();
-        _refreshTokens.Received(1).UpdateRange(Arg.Any<IEnumerable<RefreshToken>>());
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

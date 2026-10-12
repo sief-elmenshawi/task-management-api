@@ -157,7 +157,6 @@ public sealed class AuthService : IAuthService
         var newRefreshTokenHash = HashToken(newRefreshTokenValue);
 
         storedToken.Revoke(newRefreshTokenHash);
-        _refreshTokens.Update(storedToken);
 
         var accessToken = _jwtTokenService.CreateAccessToken(user);
         var refreshToken = new RefreshToken(
@@ -197,7 +196,6 @@ public sealed class AuthService : IAuthService
         if (!storedToken.IsRevoked)
         {
             storedToken.Revoke();
-            _refreshTokens.Update(storedToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Revoked refresh token for user {UserId}.", storedToken.UserId);
@@ -242,11 +240,6 @@ public sealed class AuthService : IAuthService
         foreach (var token in activeTokens)
         {
             token.Revoke();
-        }
-
-        if (activeTokens.Count > 0)
-        {
-            _refreshTokens.UpdateRange(activeTokens);
         }
     }
 

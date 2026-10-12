@@ -123,7 +123,6 @@ public class AuthServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.AccessToken.Should().Be("new-access");
         stored.IsRevoked.Should().BeTrue();
-        _refreshTokens.Received(1).Update(stored);
         await _refreshTokens.Received(1).AddAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
     }
 
@@ -145,7 +144,6 @@ public class AuthServiceTests
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("RefreshTokenReuseDetected");
         stillActive.IsRevoked.Should().BeTrue();
-        _refreshTokens.Received(1).UpdateRange(Arg.Any<IEnumerable<RefreshToken>>());
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

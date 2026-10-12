@@ -29,9 +29,4 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
 
     public async Task AddAsync(RefreshToken refreshToken, CancellationToken cancellationToken = default) =>
         await _context.RefreshTokens.AddAsync(refreshToken, cancellationToken);
-
-    public void Update(RefreshToken refreshToken) => _context.RefreshTokens.Update(refreshToken);
-
-    public void UpdateRange(IEnumerable<RefreshToken> refreshTokens) =>
-        _context.RefreshTokens.UpdateRange(refreshTokens);
 }

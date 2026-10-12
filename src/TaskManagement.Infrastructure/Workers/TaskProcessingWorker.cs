@@ -102,9 +102,9 @@ public class TaskProcessingWorker : BackgroundService
 
             var pending = await repository.GetPendingAsync(cancellationToken);
 
-            foreach (var task in pending)
+            foreach (var taskId in pending)
             {
-                await _queue.EnqueueAsync(task.Id, cancellationToken);
+                await _queue.EnqueueAsync(taskId, cancellationToken);
             }
 
             _logger.LogInformation("Recovered {Count} pending task(s) after startup.", pending.Count);

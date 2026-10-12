@@ -111,8 +111,8 @@ public sealed class TaskService : ITaskService
             return Result.Success(cached);
         }
 
-        var task = await _tasks.GetByIdAsync(taskId, cancellationToken);
-        if (task is null || task.UserId != userId)
+        var task = await _tasks.GetByIdForUserAsync(taskId, userId, cancellationToken);
+        if (task is null)
         {
             return Result.Failure<TaskResponse>(Error.NotFound("Task not found.", "TaskNotFound"));
         }
@@ -135,8 +135,8 @@ public sealed class TaskService : ITaskService
             return Result.Failure<TaskResponse>(validation.ToError());
         }
 
-        var task = await _tasks.GetByIdAsync(taskId, cancellationToken);
-        if (task is null || task.UserId != userId)
+        var task = await _tasks.GetByIdForUserAsync(taskId, userId, cancellationToken);
+        if (task is null)
         {
             _logger.LogDebug("Task {TaskId} was not found for user {UserId}.", taskId, userId);
 
