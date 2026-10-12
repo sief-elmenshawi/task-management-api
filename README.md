@@ -10,15 +10,14 @@ inward.
 
 ```
 TaskManagement.Api  (controllers, Swagger, middleware)
-        |
-        v
-TaskManagement.Infrastructure  (EF Core, repositories, JWT, hashing, caching, queue, worker, seeding)
-        |
-        v
-TaskManagement.Application  (services, DTOs, validators, Result<T>, abstractions)
-        |
-        v
-TaskManagement.Domain  (entities, enums, repository interfaces, domain exceptions)
+  |--> TaskManagement.Application  (services, DTOs, validators, Result<T>, abstractions)
+  |          |--> TaskManagement.Domain
+  |
+  |--> TaskManagement.Infrastructure  (EF Core, repositories, JWT, hashing, caching, queue, worker, seeding)
+             |--> TaskManagement.Application
+             |--> TaskManagement.Domain
+
+TaskManagement.Domain  -->  (no dependencies)
 ```
 
 - `TaskManagement.Domain` - no dependencies.
