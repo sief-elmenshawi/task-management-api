@@ -12,6 +12,7 @@ namespace TaskManagement.Application.Tasks;
 public sealed class TaskService : ITaskService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan EnqueueTimeout = TimeSpan.FromSeconds(5);
 
     private readonly ITaskRepository _tasks;
     private readonly IUnitOfWork _unitOfWork;
@@ -78,11 +79,30 @@ public sealed class TaskService : ITaskService
             return TaskTitleConflict();
         }
 
-        await _taskQueue.EnqueueAsync(task.Id);
+        await TryEnqueueAsync(task.Id, userId);
 
         _logger.LogInformation("Created task {TaskId} for user {UserId}.", task.Id, userId);
 
         return Result.Success(ToResponse(task));
+    }
+
+    private async Task TryEnqueueAsync(Guid taskId, Guid userId)
+    {
+        using var timeout = new CancellationTokenSource(EnqueueTimeout);
+
+        try
+        {
+            await _taskQueue.EnqueueAsync(taskId, timeout.Token);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Failed to enqueue task {TaskId} for user {UserId} within {Seconds}s; it will stay Pending and be recovered at startup.",
+                taskId,
+                userId,
+                EnqueueTimeout.TotalSeconds);
+        }
     }
 
     public async Task<Result<IReadOnlyList<TaskResponse>>> GetForUserAsync(

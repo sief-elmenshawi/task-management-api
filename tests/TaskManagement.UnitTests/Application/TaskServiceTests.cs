@@ -96,6 +96,48 @@ public class TaskServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_StillEnqueues_WhenRequestIsCancelledAfterSave()
+    {
+        var userId = Guid.NewGuid();
+        _tasks.ExistsForUserOnDateAsync(
+                userId, "MY TASK", Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        using var cts = new CancellationTokenSource();
+        _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                cts.Cancel();
+                return 1;
+            });
+
+        var result = await CreateSut().CreateAsync(
+            userId, new CreateTaskRequest("My Task", "desc", TaskPriority.Low), cts.Token);
+
+        result.IsSuccess.Should().BeTrue();
+        await _taskQueue.Received(1).EnqueueAsync(
+            result.Value.Id, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateAsync_StillReturnsSuccess_WhenEnqueueFails()
+    {
+        var userId = Guid.NewGuid();
+        _tasks.ExistsForUserOnDateAsync(
+                userId, "MY TASK", Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+        _taskQueue.EnqueueAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new InvalidOperationException("queue full"));
+
+        var result = await CreateSut().CreateAsync(
+            userId, new CreateTaskRequest("My Task", "desc", TaskPriority.Low));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Status.Should().Be(TaskItemStatus.Pending);
+        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CreateAsync_ReturnsConflict_AndDoesNotEnqueue_WhenUniqueConstraintTrips()
     {
         var userId = Guid.NewGuid();
