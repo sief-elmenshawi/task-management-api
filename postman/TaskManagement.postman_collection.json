@@ -2669,8 +2669,8 @@
                   "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "});",
                   "pm.test('TASKS-27 does not accept a missing status (no reset to Pending)', function () {",
-                  "  pm.expect(b.errors).to.have.property('status');",
-                  "  pm.expect(b.errors.status.join(' ')).to.include('Status is required.');",
+                  "  pm.expect(b.errors).to.have.property('Status');",
+                  "  pm.expect(b.errors.Status.join(' ')).to.include('Status is required.');",
                   "  pm.expect(b.errors).to.not.have.property('request');",
                   "});"
                 ]
@@ -2754,8 +2754,8 @@
                   "  pm.expect(b.code).to.eql('ValidationFailed');",
                   "});",
                   "pm.test('TASKS-29 rejects a missing priority', function () {",
-                  "  pm.expect(b.errors).to.have.property('priority');",
-                  "  pm.expect(b.errors.priority.join(' ')).to.include('Priority is required.');",
+                  "  pm.expect(b.errors).to.have.property('Priority');",
+                  "  pm.expect(b.errors.Priority.join(' ')).to.include('Priority is required.');",
                   "  pm.expect(b.errors).to.not.have.property('request');",
                   "});"
                 ]
