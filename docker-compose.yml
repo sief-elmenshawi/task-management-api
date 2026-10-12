@@ -57,6 +57,8 @@ services:
       Cors__AllowedOrigins__0: "${CORS_ORIGIN:-http://localhost:5173}"
       Swagger__Enabled: "true"
       Worker__Concurrency: "${WORKER_CONCURRENCY:-3}"
+      RateLimiting__Auth__PermitLimit: "${RATE_LIMIT_AUTH_PERMIT:-10}"
+      RateLimiting__Auth__WindowSeconds: "${RATE_LIMIT_AUTH_WINDOW:-60}"
     ports:
       - "${API_PORT:-8080}:8080"
 

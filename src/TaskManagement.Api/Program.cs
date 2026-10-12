@@ -49,6 +49,7 @@ builder.Services.AddControllers()
     });
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApiRateLimiting(builder.Configuration);
 
 var jwtSettings = builder.Configuration
     .GetSection(JwtSettings.SectionName)
@@ -127,6 +128,8 @@ app.UseCors("Default");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseRateLimiter();
 
 app.MapControllers();
 
