@@ -96,6 +96,12 @@ public static class DependencyInjection
             .Validate(
                 options => options.Concurrency >= 1,
                 "Worker:Concurrency must be at least 1.")
+            .Validate(
+                options => options.RecoveryIntervalSeconds >= 1,
+                "Worker:RecoveryIntervalSeconds must be at least 1.")
+            .Validate(
+                options => options.RecoveryMinAgeSeconds >= 0,
+                "Worker:RecoveryMinAgeSeconds must be at least 0.")
             .ValidateOnStart();
 
         services.AddHostedService<TaskProcessingWorker>();

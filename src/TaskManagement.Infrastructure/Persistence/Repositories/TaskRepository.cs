@@ -54,6 +54,18 @@ public sealed class TaskRepository : ITaskRepository
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> GetPendingOlderThanAsync(
+        DateTime createdAtBefore,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        await _context.Tasks
+            .AsNoTracking()
+            .Where(t => t.Status == TaskItemStatus.Pending && t.CreatedAt < createdAtBefore)
+            .OrderBy(t => t.CreatedAt)
+            .Select(t => t.Id)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(TaskItem task, CancellationToken cancellationToken = default) =>
         await _context.Tasks.AddAsync(task, cancellationToken);
 }

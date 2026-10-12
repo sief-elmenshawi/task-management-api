@@ -17,6 +17,7 @@ public class TaskProcessingWorker : BackgroundService
 {
     private const int MinDelayMilliseconds = 3000;
     private const int MaxDelayMilliseconds = 5000;
+    private const int RecoveryBatchSize = 100;
 
     private readonly ChannelTaskQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -47,6 +48,7 @@ public class TaskProcessingWorker : BackgroundService
             concurrency);
 
         var recovery = RecoverPendingTasksAsync(stoppingToken);
+        var periodicRecovery = RunPeriodicRecoveryAsync(stoppingToken);
 
         var consumers = new Task[concurrency];
         for (var index = 0; index < concurrency; index++)
@@ -64,6 +66,7 @@ public class TaskProcessingWorker : BackgroundService
         }
 
         await recovery;
+        await periodicRecovery;
 
         _logger.LogInformation("Task processing worker stopped.");
     }
@@ -149,6 +152,58 @@ public class TaskProcessingWorker : BackgroundService
         catch (Exception exception)
         {
             _logger.LogError(exception, "Failed to recover pending tasks.");
+        }
+    }
+
+    private async Task RunPeriodicRecoveryAsync(CancellationToken stoppingToken)
+    {
+        var interval = TimeSpan.FromSeconds(Math.Max(1, _options.Value.RecoveryIntervalSeconds));
+        using var timer = new PeriodicTimer(interval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await RecoverOlderPendingOnceAsync(stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected during host shutdown.
+        }
+    }
+
+    internal async Task RecoverOlderPendingOnceAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<ITaskRepository>();
+
+            var minAge = TimeSpan.FromSeconds(Math.Max(0, _options.Value.RecoveryMinAgeSeconds));
+            var cutoff = DateTime.UtcNow - minAge;
+            var pending = await repository.GetPendingOlderThanAsync(cutoff, RecoveryBatchSize, cancellationToken);
+
+            foreach (var taskId in pending.Take(RecoveryBatchSize))
+            {
+                await _queue.EnqueueAsync(taskId, cancellationToken);
+            }
+
+            if (pending.Count > 0)
+            {
+                _logger.LogInformation(
+                    "Periodic recovery re-enqueued {Count} pending task(s) older than {MinAge} seconds.",
+                    pending.Count,
+                    minAge.TotalSeconds);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Periodic recovery was cancelled during shutdown.");
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to run periodic pending-task recovery.");
         }
     }
 

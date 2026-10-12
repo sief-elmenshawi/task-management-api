@@ -149,6 +149,12 @@ files.
 - `Worker:Concurrency` - number of background-worker consumers that process queued tasks in parallel
   (default `3`, minimum `1`; validated at startup). The Compose service sets it from
   `WORKER_CONCURRENCY`, so `WORKER_CONCURRENCY=6` in `.env` runs six parallel consumers.
+- `Worker:RecoveryIntervalSeconds` - seconds between periodic recovery sweeps (default `60`, minimum
+  `1`; validated at startup). Compose reads it from `WORKER_RECOVERY_INTERVAL_SECONDS`.
+- `Worker:RecoveryMinAgeSeconds` - a `Pending` task must be at least this old before periodic recovery
+  re-enqueues it (default `30`, minimum `0`; validated at startup). This stops the periodic sweep from
+  fighting the consumers over tasks that were just created and queued. Compose reads it from
+  `WORKER_RECOVERY_MIN_AGE_SECONDS`.
 - `RateLimiting:Auth` - fixed-window rate limit for `POST /api/auth/register`, `/api/auth/login` and
   `/api/auth/refresh`, partitioned by client IP address. `PermitLimit` (default `10`) requests are
   allowed per `WindowSeconds` (default `60`); the next request gets `429 Too Many Requests` with a
@@ -261,11 +267,15 @@ is retried up to three times with a short backoff; a task that never reaches `In
 `Pending` so recovery can pick it up again. Each job runs in a try/catch so a single failure never
 stops a consumer, and each loop honors the host's shutdown token.
 
-**Startup recovery.** When the worker starts it queries the database for tasks still in `Pending`
-and re-enqueues them, so work that was queued but never processed (for example because the process
-stopped during the 3-5 second delay, or the enqueue was lost) resumes when the process restarts.
-Recovery runs once at startup, concurrently with the read loop, and logs the number of recovered
-tasks. It does not run again while the process keeps running.
+**Recovery.** When the worker starts it queries the database for tasks still in `Pending` and
+re-enqueues them, so work that was queued but never processed (for example because the process
+stopped during the 3-5 second delay, or the enqueue was lost) resumes when the process restarts. While
+the worker runs, it repeats the sweep every `Worker:RecoveryIntervalSeconds` (default `60`), but only
+re-enqueues `Pending` tasks whose `CreatedAt` is older than `Worker:RecoveryMinAgeSeconds` (default
+`30`) and at most `100` per cycle, so the periodic sweep does not re-queue tasks the consumers are
+about to process. Enqueueing a task that is already queued is harmless: a consumer only moves a task
+that is still `Pending`, so duplicates are ignored. Both recovery sweeps run concurrently with the
+read loop and log the number of recovered tasks.
 
 ## Health checks
 
@@ -365,8 +375,8 @@ limit back to `10`) to observe the `429` response.
 - Redis cache-aside for `GET /api/tasks/{id}`, with write-through on status change (the worker evicts)
   and automatic fallback to SQL Server when Redis is unavailable (see [Caching](#caching)).
 - An in-process background worker (`TaskProcessingWorker`) with `Worker:Concurrency` parallel
-  consumers (default `3`) that moves `Pending` tasks to `InProgress`, retries transient failures and
-  recovers pending tasks on startup.
+  consumers (default `3`) that moves `Pending` tasks to `InProgress`, retries transient SQL failures,
+  and recovers pending tasks at startup and periodically (both intervals configurable).
 - Soft-delete for users: `DELETE` revokes the account's refresh tokens, frees the email for reuse and
   keeps the row for auditing.
 - Refresh-token rotation with hash-only storage, reuse detection (configurable grace window) and a
@@ -379,9 +389,11 @@ limit back to `10`) to observe the `429` response.
 ## Known limitations
 
 - The background queue is in-memory and lives in the API process. Pending tasks are recovered from the
-  database once when the worker starts; there is no periodic recovery while the process keeps running.
-  A task whose enqueue never persisted (the process died between commit and enqueue) stays `Pending`
-  until the next restart, or would need a durable broker such as a Redis list or a real message queue.
+  database at startup and then periodically (every `Worker:RecoveryIntervalSeconds`, capped at `100`
+  older-than-`Worker:RecoveryMinAgeSeconds` tasks per cycle) while the API runs. A task whose enqueue
+  never persisted (the process died between commit and enqueue) stays `Pending` until the next
+  recovery sweep, or would need a durable broker such as a Redis list or a real message queue. A
+  `Pending` task that permanently fails to process is re-enqueued by each periodic sweep.
 - Cache reads may serve a stale status for up to the 5-minute TTL in rare races (a read and a status
   update racing, leaving the older status in Redis) or if a Redis eviction failed while Redis was
   down. Only status updates write or evict the entry; reads never invalidate.

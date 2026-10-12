@@ -56,6 +56,8 @@ services:
       Cors__AllowedOrigins__0: "${CORS_ORIGIN:-http://localhost:5173}"
       Swagger__Enabled: "true"
       Worker__Concurrency: "${WORKER_CONCURRENCY:-3}"
+      Worker__RecoveryIntervalSeconds: "${WORKER_RECOVERY_INTERVAL_SECONDS:-60}"
+      Worker__RecoveryMinAgeSeconds: "${WORKER_RECOVERY_MIN_AGE_SECONDS:-30}"
       RateLimiting__Auth__PermitLimit: "${RATE_LIMIT_AUTH_PERMIT:-10}"
       RateLimiting__Auth__WindowSeconds: "${RATE_LIMIT_AUTH_WINDOW:-60}"
       RefreshToken__ReuseGraceSeconds: "${REFRESH_TOKEN_REUSE_GRACE_SECONDS:-30}"

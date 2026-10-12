@@ -158,6 +158,34 @@ public class TaskProcessingWorkerTests
     }
 
     [Fact]
+    public async Task RecoverOlderPendingOnceAsync_EnqueuesOnlyOldPendingTasks_UpToTheBatchCap()
+    {
+        var worker = CreateWorker(out var provider);
+        using var _ = provider;
+
+        var pending = Enumerable.Range(0, 150).Select(_ => Guid.NewGuid()).ToList();
+        DateTime? cutoff = null;
+        _tasks.GetPendingOlderThanAsync(
+                Arg.Do<DateTime>(value => cutoff = value),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(pending);
+
+        await worker.RecoverOlderPendingOnceAsync(CancellationToken.None);
+
+        var reader = _queue.Reader;
+        var recovered = new List<Guid>();
+        while (reader.TryRead(out var id))
+        {
+            recovered.Add(id);
+        }
+
+        recovered.Should().HaveCount(100);
+        recovered.Should().BeSubsetOf(pending);
+        cutoff.Should().BeCloseTo(DateTime.UtcNow.AddSeconds(-30), TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
     public async Task ProcessWithRetryAsync_Retries_WhenTransientFailureOccurs()
     {
         var worker = CreateWorker(out var provider);

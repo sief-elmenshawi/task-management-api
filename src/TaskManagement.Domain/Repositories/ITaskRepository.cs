@@ -13,5 +13,9 @@ public interface ITaskRepository
         DateOnly createdDate,
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>> GetPendingAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Guid>> GetPendingOlderThanAsync(
+        DateTime createdAtBefore,
+        int limit,
+        CancellationToken cancellationToken = default);
     Task AddAsync(TaskItem task, CancellationToken cancellationToken = default);
 }
