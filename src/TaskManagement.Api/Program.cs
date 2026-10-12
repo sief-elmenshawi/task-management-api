@@ -50,6 +50,7 @@ builder.Services.AddControllers()
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApiRateLimiting(builder.Configuration);
+builder.Services.AddApiHealthChecks();
 
 var jwtSettings = builder.Configuration
     .GetSection(JwtSettings.SectionName)
@@ -132,6 +133,8 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapControllers();
+
+app.MapApiHealthChecks();
 
 await DatabaseInitializer.InitializeAsync(app.Services);
 

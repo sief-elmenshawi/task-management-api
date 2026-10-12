@@ -95,6 +95,26 @@ public sealed class RedisCacheService : ICacheService
         }
     }
 
+    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
+    {
+        var connection = GetConnection();
+        if (connection is null || !connection.IsConnected)
+        {
+            return false;
+        }
+
+        try
+        {
+            await connection.GetDatabase().PingAsync();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Redis health check failed.");
+            return false;
+        }
+    }
+
     private IDatabase? GetDatabase() => GetConnection()?.GetDatabase();
 
     private IConnectionMultiplexer? GetConnection()

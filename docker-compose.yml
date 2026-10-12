@@ -61,6 +61,12 @@ services:
       RateLimiting__Auth__WindowSeconds: "${RATE_LIMIT_AUTH_WINDOW:-60}"
     ports:
       - "${API_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   sqlserver_data:
