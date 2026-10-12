@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,8 @@ namespace TaskManagement.Infrastructure;
 
 public static class DependencyInjection
 {
+    private const string DevSigningKey = "dev-only-signing-key-change-in-production-0123456789abcdef";
+
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -40,6 +43,17 @@ public static class DependencyInjection
             .Validate(
                 settings => settings.ExpiryMinutes > 0,
                 "JwtSettings:ExpiryMinutes must be greater than zero.")
+            .Validate(
+                settings => Encoding.UTF8.GetByteCount(settings.Key) >= 32,
+                "JwtSettings:Key must be at least 32 bytes (256 bits) for HS256.")
+            .PostConfigure<ILoggerFactory>((settings, loggerFactory) =>
+            {
+                if (string.Equals(settings.Key, DevSigningKey, StringComparison.Ordinal))
+                {
+                    loggerFactory.CreateLogger(typeof(JwtSettings)).LogWarning(
+                        "JwtSettings:Key is the development-only default. Replace it with a unique, at-least-32-byte secret in any shared or production environment.");
+                }
+            })
             .ValidateOnStart();
 
         services.AddOptions<RefreshTokenOptions>()
