@@ -130,6 +130,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-await DbSeeder.SeedAsync(app.Services);
+await DatabaseInitializer.InitializeAsync(app.Services);
 
 await app.RunAsync();
