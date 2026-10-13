@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -31,6 +32,37 @@ public class ModelStateProblemDetailsTests
         errors.Should().ContainKey("request");
         errors["request"].Should().ContainSingle()
             .Which.Should().Be("The request body is malformed or is not of the expected type.");
+    }
+
+    [Fact]
+    public void Create_ReturnsMalformedBody_WhenErrorIsCarriedOnlyAsAnException()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.TryAddModelError("$", "placeholder");
+        modelState["$"]!.Errors.Clear();
+        modelState["$"]!.Errors.Add(
+            new ModelError(new JsonException("'<' is an invalid start of a value. Path: $ | LineNumber: 0 | BytePositionInLine: 1.")));
+
+        var errors = Errors(ModelStateProblemDetails.Create(modelState));
+
+        errors.Should().ContainKey("request");
+        errors["request"].Should().ContainSingle()
+            .Which.Should().Be("The request body is malformed or is not of the expected type.");
+    }
+
+    [Fact]
+    public void Create_MapsFieldKey_WhenErrorIsCarriedOnlyAsAnException()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.TryAddModelError("$.priority", "placeholder");
+        modelState["$.priority"]!.Errors.Clear();
+        modelState["$.priority"]!.Errors.Add(new ModelError(new JsonException("The JSON value could not be converted.")));
+
+        var errors = Errors(ModelStateProblemDetails.Create(modelState));
+
+        errors.Should().ContainKey("priority");
+        errors["priority"].Should().ContainSingle()
+            .Which.Should().Be("Invalid value. Allowed values: Low, Medium, High.");
     }
 
     [Fact]

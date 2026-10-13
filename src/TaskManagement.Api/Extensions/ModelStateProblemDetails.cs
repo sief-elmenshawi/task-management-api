@@ -68,8 +68,11 @@ public static class ModelStateProblemDetails
         foreach (var (key, entry) in modelState)
         {
             var messages = entry.Errors
-                .Select(error => error.ErrorMessage)
+                .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                    ? error.Exception?.Message
+                    : error.ErrorMessage)
                 .Where(message => !string.IsNullOrWhiteSpace(message))
+                .Select(message => message!)
                 .ToArray();
 
             if (messages.Length > 0)
