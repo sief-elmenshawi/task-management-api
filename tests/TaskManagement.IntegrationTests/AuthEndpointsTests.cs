@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 
@@ -112,5 +113,112 @@ public class AuthEndpointsTests
         // Reuse detection revoked every active session, including the freshly rotated token.
         var afterRevoke = await client.PostAsJsonAsync("/api/auth/refresh", new RefreshBody(rotated.RefreshToken));
         afterRevoke.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [IntegrationFact]
+    public async Task Register_WithEmptyObject_Returns400WithAllFieldErrors()
+    {
+        var client = await _fixture.CreateClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/auth/register", new { });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var errors = await ReadValidationErrorsAsync(response);
+        errors.Should().ContainKeys("Name", "Email", "Password", "ConfirmPassword");
+    }
+
+    [IntegrationFact]
+    public async Task Register_WithOnlyEmail_Returns400ForTheMissingFields()
+    {
+        var client = await _fixture.CreateClientAsync();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/register",
+            new { email = $"partial-{Guid.NewGuid():N}@example.com" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var errors = await ReadValidationErrorsAsync(response);
+        errors.Should().ContainKeys("Name", "Password", "ConfirmPassword");
+    }
+
+    [IntegrationFact]
+    public async Task Register_WithMissingPassword_Returns400ForPasswordAndConfirmation()
+    {
+        var client = await _fixture.CreateClientAsync();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/register",
+            new { name = "Jane", email = $"nopass-{Guid.NewGuid():N}@example.com", confirmPassword = "Password1" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var errors = await ReadValidationErrorsAsync(response);
+        errors.Should().ContainKeys("Password", "ConfirmPassword");
+    }
+
+    [IntegrationFact]
+    public async Task Register_WithMissingConfirmPassword_Returns400()
+    {
+        var client = await _fixture.CreateClientAsync();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/register",
+            new { name = "Jane", email = $"noconfirm-{Guid.NewGuid():N}@example.com", password = "Password1" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var errors = await ReadValidationErrorsAsync(response);
+        errors.Should().ContainKey("ConfirmPassword");
+    }
+
+    [IntegrationFact]
+    public async Task Register_WithInvalidEmail_Returns400ForEmail()
+    {
+        var client = await _fixture.CreateClientAsync();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/register",
+            new { name = "Jane", email = "not-an-email", password = "Password1", confirmPassword = "Password1" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var errors = await ReadValidationErrorsAsync(response);
+        errors.Should().ContainKey("Email");
+    }
+
+    [IntegrationFact]
+    public async Task Register_WithEmptyBody_Returns400NotServerError()
+    {
+        var client = await _fixture.CreateClientAsync();
+        using var content = new StringContent(string.Empty, Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync("/api/auth/register", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("code").GetString().Should().Be("ValidationFailed");
+    }
+
+    [IntegrationFact]
+    public async Task Register_WithMalformedJson_Returns400NotServerError()
+    {
+        var client = await _fixture.CreateClientAsync();
+        using var content = new StringContent("{ \"email\": ", Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync("/api/auth/register", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("code").GetString().Should().Be("ValidationFailed");
+    }
+
+    private static async Task<Dictionary<string, JsonElement>> ReadValidationErrorsAsync(HttpResponseMessage response)
+    {
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("code").GetString().Should().Be("ValidationFailed");
+
+        return body.RootElement
+            .GetProperty("errors")
+            .EnumerateObject()
+            .ToDictionary(property => property.Name, property => property.Value.Clone());
     }
 }

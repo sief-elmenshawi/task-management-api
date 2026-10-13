@@ -8,4 +8,6 @@ internal sealed record RefreshBody(string RefreshToken);
 
 internal sealed record CreateTaskBody(string Title, string? Description, string Priority);
 
+internal sealed record UpdateTaskStatusBody(string Status);
+
 internal sealed record AuthResponseBody(string AccessToken, string RefreshToken, DateTime ExpiresAt);
