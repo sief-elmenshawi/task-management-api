@@ -5,8 +5,8 @@ A simple, clean task management backend API built with ASP.NET Core following On
 
 ## Architecture
 
-One solution, four projects under `src/` plus a unit test project under `tests/`. Dependencies point
-inward.
+One solution, four projects under `src/` plus unit and integration test projects under `tests/`.
+Dependencies point inward.
 
 ```
 TaskManagement.Api  (controllers, Swagger, middleware)
@@ -26,6 +26,8 @@ TaskManagement.Domain  -->  (no dependencies)
 - `TaskManagement.Api` - depends on Application + Infrastructure (Infrastructure only referenced from `Program.cs` for DI).
 - `TaskManagement.UnitTests` - xUnit tests for the domain, application services, the EF Core query
   behaviour (task list ordering and ownership, soft delete) and the worker.
+- `TaskManagement.IntegrationTests` - opt-in end-to-end tests that boot the API against real SQL
+  Server and Redis containers (Testcontainers).
 
 Entities are never returned from the API; only DTOs.
 
