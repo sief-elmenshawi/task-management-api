@@ -431,9 +431,4 @@ limit back to `10`) to observe the `429` response.
 - `RowVersion` is an EF concurrency token; concurrent status updates surface as `409 Conflict`
   (`ConcurrencyConflict`).
 
-## AI tools used
-
-OpenCode was used to generate code from detailed prompts written by the author (architecture,
-requirements and conventions). Every change was reviewed, tested (unit tests, Postman/Newman and
-manual Swagger checks) and understood before it was kept.
 
