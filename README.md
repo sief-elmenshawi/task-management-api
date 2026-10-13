@@ -347,6 +347,19 @@ dotnet test
 They use NSubstitute for collaborators and FluentAssertions for assertions, and require no external
 services.
 
+Integration tests live in `tests/TaskManagement.IntegrationTests` and boot the real API through
+`WebApplicationFactory` against throwaway SQL Server and Redis containers (Testcontainers). They are
+opt-in so a plain `dotnet test` stays dependency-free; without the flag every integration test reports
+as skipped. With Docker running:
+
+```bash
+TASKMANAGER_INTEGRATION=1 dotnet test tests/TaskManagement.IntegrationTests
+```
+
+```powershell
+$env:TASKMANAGER_INTEGRATION = "1"; dotnet test tests/TaskManagement.IntegrationTests
+```
+
 ## Postman / Newman
 
 The collection and environment live in `postman/`:
@@ -407,8 +420,6 @@ limit back to `10`) to observe the `429` response.
 - Duplicate titles are scoped per user, per calendar day (UTC), and compared case-insensitively after
   trimming. A unique index on `(UserId, NormalizedTitle, CreatedDate)` enforces this in the database;
   the 2601/2627 SQL errors are mapped to `409`.
-- Access tokens are stateless (JWT), so deleting a user does not invalidate an already-issued access
-  token until it expires (at most `15` minutes).
 - The seeded admin password (`Admin@123`) is a documented development default; change it in any real
   deployment.
 - Admins create and delete accounts but cannot delete their own account, and there is no endpoint to

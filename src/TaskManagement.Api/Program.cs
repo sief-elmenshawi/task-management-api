@@ -84,3 +84,5 @@ app.MapApiHealthChecks();
 await DatabaseInitializer.InitializeAsync(app.Services);
 
 await app.RunAsync();
+
+public partial class Program { }
