@@ -55,17 +55,15 @@ public class UserServiceTests
     {
         var currentUser = Guid.NewGuid();
         var user = new User("Jane", "jane@example.com", "hashed", UserRole.User);
-        var activeToken = new RefreshToken(user.Id, "hash", DateTime.UtcNow.AddDays(1));
 
         _users.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
-        _refreshTokens.GetActiveByUserIdAsync(user.Id, Arg.Any<CancellationToken>())
-            .Returns(new List<RefreshToken> { activeToken });
 
         var result = await CreateSut().DeleteAsync(currentUser, user.Id);
 
         result.IsSuccess.Should().BeTrue();
         user.IsDeleted.Should().BeTrue();
-        activeToken.IsRevoked.Should().BeTrue();
+        await _refreshTokens.Received(1).RevokeAllActiveAsync(
+            user.Id, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

@@ -155,19 +155,16 @@ public class AuthServiceTests
         var reused = new RefreshToken(userId, "reused-hash", DateTime.UtcNow.AddDays(1));
         reused.Revoke("replacement-hash");
 
-        var stillActive = new RefreshToken(userId, "active-hash", DateTime.UtcNow.AddDays(1));
-
         _refreshTokens.GetByTokenHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(reused);
-        _refreshTokens.GetActiveByUserIdAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(new List<RefreshToken> { stillActive });
 
         var result = await CreateSut(new RefreshTokenOptions { ReuseGraceSeconds = -1 })
             .RefreshAsync(new RefreshTokenRequest("raw-refresh-token"));
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("RefreshTokenReuseDetected");
-        stillActive.IsRevoked.Should().BeTrue();
-        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await _refreshTokens.Received(1).RevokeAllActiveAsync(
+            userId, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -184,7 +181,7 @@ public class AuthServiceTests
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("InvalidRefreshToken");
         await _refreshTokens.DidNotReceive()
-            .GetActiveByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+            .RevokeAllActiveAsync(Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

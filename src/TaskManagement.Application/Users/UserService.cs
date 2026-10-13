@@ -77,14 +77,9 @@ public sealed class UserService : IUserService
             return Result.Failure(Error.NotFound("User not found.", "UserNotFound"));
         }
 
-        var activeTokens = await _refreshTokens.GetActiveByUserIdAsync(userId, cancellationToken);
+        var activeTokens = await _refreshTokens.RevokeAllActiveAsync(userId, DateTime.UtcNow, cancellationToken);
 
         user.MarkAsDeleted();
-
-        foreach (var token in activeTokens)
-        {
-            token.Revoke();
-        }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

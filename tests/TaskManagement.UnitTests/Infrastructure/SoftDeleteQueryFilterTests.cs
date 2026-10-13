@@ -11,6 +11,7 @@ using TaskManagement.Application.Common;
 using TaskManagement.Application.Users;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Domain.Enums;
+using TaskManagement.Domain.Repositories;
 using TaskManagement.Infrastructure.Persistence;
 using TaskManagement.Infrastructure.Persistence.Repositories;
 
@@ -104,23 +105,19 @@ public class SoftDeleteQueryFilterTests
     }
 
     [Fact]
-    public async Task DeleteAsync_RevokesAllActiveTokens_AndSoftDeletesTheUser()
+    public async Task DeleteAsync_SoftDeletesTheUser_AndRequestsRevocationOfActiveTokens()
     {
         await using var context = CreateContext();
 
         var user = new User("Jane", "jane@example.com", "hash", UserRole.User);
-        var firstActive = new RefreshToken(user.Id, "hash-1", DateTime.UtcNow.AddDays(1));
-        var secondActive = new RefreshToken(user.Id, "hash-2", DateTime.UtcNow.AddDays(1));
-        var alreadyRevoked = new RefreshToken(user.Id, "hash-3", DateTime.UtcNow.AddDays(1));
-        alreadyRevoked.Revoke();
-
         context.Users.Add(user);
-        context.RefreshTokens.AddRange(firstActive, secondActive, alreadyRevoked);
         await context.SaveChangesAsync();
+
+        var refreshTokens = Substitute.For<IRefreshTokenRepository>();
 
         var service = new UserService(
             new UserRepository(context),
-            new RefreshTokenRepository(context),
+            refreshTokens,
             new UnitOfWork(context),
             Substitute.For<IPasswordHasher>(),
             new RegisterRequestValidator());
@@ -134,12 +131,7 @@ public class SoftDeleteQueryFilterTests
             .SingleAsync(u => u.Id == user.Id);
         storedUser.IsDeleted.Should().BeTrue();
 
-        var tokens = await context.RefreshTokens
-            .IgnoreQueryFilters()
-            .Where(t => t.UserId == user.Id)
-            .ToListAsync();
-
-        tokens.Should().HaveCount(3);
-        tokens.Should().OnlyContain(t => t.IsRevoked);
+        await refreshTokens.Received(1).RevokeAllActiveAsync(
+            user.Id, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 }

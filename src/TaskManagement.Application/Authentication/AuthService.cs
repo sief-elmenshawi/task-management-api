@@ -122,12 +122,12 @@ public sealed class AuthService : IAuthService
         {
             if (IsReuse(storedToken))
             {
-                await RevokeAllActiveTokensAsync(storedToken.UserId, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                var revoked = await RevokeAllActiveTokensAsync(storedToken.UserId, cancellationToken);
 
                 _logger.LogWarning(
-                    "Refresh token reuse detected for user {UserId}; revoking all active sessions.",
-                    storedToken.UserId);
+                    "Refresh token reuse detected for user {UserId}; revoked {RevokedCount} active session(s).",
+                    storedToken.UserId,
+                    revoked);
 
                 return Result.Failure<AuthResponse>(
                     Error.Unauthorized(
@@ -253,15 +253,8 @@ public sealed class AuthService : IAuthService
         return new AuthResponse(accessToken.Token, refreshTokenValue, accessToken.ExpiresAt);
     }
 
-    private async Task RevokeAllActiveTokensAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var activeTokens = await _refreshTokens.GetActiveByUserIdAsync(userId, cancellationToken);
-
-        foreach (var token in activeTokens)
-        {
-            token.Revoke();
-        }
-    }
+    private Task<int> RevokeAllActiveTokensAsync(Guid userId, CancellationToken cancellationToken) =>
+        _refreshTokens.RevokeAllActiveAsync(userId, DateTime.UtcNow, cancellationToken);
 
     private static UserResponse ToUserResponse(User user) =>
         new(user.Id, user.Name, user.Email, user.Role.ToString());
