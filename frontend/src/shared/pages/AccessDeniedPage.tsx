@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import './pages.css'
 
 export function AccessDeniedPage() {
+  useDocumentTitle('Access denied')
+
   return (
     <main className="page state-page">
       <h1 className="page__title">Access denied</h1>

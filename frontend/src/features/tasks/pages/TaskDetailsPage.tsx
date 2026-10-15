@@ -5,6 +5,7 @@ import { Alert } from '../../../shared/components/Alert'
 import { Button } from '../../../shared/components/Button'
 import { ErrorState } from '../../../shared/components/ErrorState'
 import { Spinner } from '../../../shared/components/Spinner'
+import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { usePolling } from '../../../shared/hooks/usePolling'
 import { formatDate } from '../../../shared/utils/formatDate'
 import { tasksApi } from '../api'
@@ -24,6 +25,9 @@ const statusLabels: Record<TaskStatus, string> = {
 export function TaskDetailsPage() {
   const { id = '' } = useParams()
   const { task, loading, error, notFound, refetch } = useTask(id)
+
+  useDocumentTitle(task?.title ?? 'Task details')
+
   const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
   const updating = pendingStatus !== null

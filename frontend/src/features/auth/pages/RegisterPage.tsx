@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Alert } from '../../../shared/components/Alert'
 import { Button } from '../../../shared/components/Button'
 import { FormField } from '../../../shared/components/FormField'
+import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { useAuth } from '../context'
 import { describeApiError } from '../formErrors'
 import { validateRegister } from '../validation'
@@ -12,6 +13,8 @@ import './auth.css'
 const fields = ['Name', 'Email', 'Password', 'ConfirmPassword']
 
 export function RegisterPage() {
+  useDocumentTitle('Create account')
+
   const { status, register } = useAuth()
   const navigate = useNavigate()
 

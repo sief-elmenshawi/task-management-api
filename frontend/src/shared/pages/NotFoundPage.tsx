@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import './pages.css'
 
 export function NotFoundPage() {
+  useDocumentTitle('Page not found')
+
   return (
     <main className="page state-page">
       <h1 className="page__title">Page not found</h1>

@@ -4,6 +4,7 @@ import { ApiError } from '../../../core/api/ApiError'
 import { Alert } from '../../../shared/components/Alert'
 import { Button } from '../../../shared/components/Button'
 import { FormField } from '../../../shared/components/FormField'
+import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { mapFieldErrors } from '../../../shared/utils/mapFieldErrors'
 import { tasksApi } from '../api'
 import { descriptionMaxLength, taskPriorities, titleMaxLength } from '../types'
@@ -20,6 +21,8 @@ const priorityLabels: Record<TaskPriority, string> = {
 }
 
 export function CreateTaskPage() {
+  useDocumentTitle('New task')
+
   const navigate = useNavigate()
   const [values, setValues] = useState<CreateTaskValues>({
     title: '',

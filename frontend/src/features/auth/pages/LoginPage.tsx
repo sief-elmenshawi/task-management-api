@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Alert } from '../../../shared/components/Alert'
 import { Button } from '../../../shared/components/Button'
 import { FormField } from '../../../shared/components/FormField'
+import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { useAuth } from '../context'
 import { describeApiError } from '../formErrors'
 import { validateLogin } from '../validation'
@@ -16,6 +17,8 @@ type LocationState = {
 }
 
 export function LoginPage() {
+  useDocumentTitle('Log in')
+
   const { status, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
