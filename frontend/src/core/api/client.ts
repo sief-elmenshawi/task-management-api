@@ -97,9 +97,25 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
   const retryAfterSeconds = parseRetryAfter(response.headers.get('Retry-After'))
   const problem = await readProblem(response)
 
+  const apiError = new ApiError({
+    status: response.status,
+    code: problem.code,
+    message: errorMessage(response.status, problem.message, retryAfterSeconds),
+    fieldErrors: problem.fieldErrors,
+    retryAfterSeconds,
+  })
+
   if (response.status === 401 && auth && !skipUnauthorizedHandler) {
-    if (canRetry && (await tryRefreshSession(usedAccessToken))) {
-      return await send<T>(path, options, false)
+    if (canRetry) {
+      const outcome = await tryRefreshSession(usedAccessToken)
+
+      if (outcome === 'refreshed') {
+        return await send<T>(path, options, false)
+      }
+
+      if (outcome === 'temporary') {
+        throw apiError
+      }
     }
 
     if (unauthorizedHandler !== null) {
@@ -107,21 +123,21 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
     }
   }
 
-  throw new ApiError({
-    status: response.status,
-    code: problem.code,
-    message: errorMessage(response.status, problem.message, retryAfterSeconds),
-    fieldErrors: problem.fieldErrors,
-    retryAfterSeconds,
-  })
+  throw apiError
 }
 
-async function tryRefreshSession(failedAccessToken: string | null): Promise<boolean> {
+type RefreshOutcome = 'refreshed' | 'rejected' | 'temporary'
+
+async function tryRefreshSession(failedAccessToken: string | null): Promise<RefreshOutcome> {
   try {
     await refreshSession(failedAccessToken)
-    return true
-  } catch {
-    return false
+    return 'refreshed'
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 400 || error.status === 401)) {
+      return 'rejected'
+    }
+
+    return 'temporary'
   }
 }
 

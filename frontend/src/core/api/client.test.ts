@@ -289,6 +289,97 @@ describe('request', () => {
     expect(handler).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the session when the refresh request fails with a server error', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    tokenStorage.set({
+      accessToken: 'old',
+      refreshToken: 'refresh-1',
+      expiresAt: '2020-01-01T00:00:00Z',
+    })
+
+    fetchMock.mockImplementation((input) => {
+      const url = String(input)
+
+      if (url.endsWith('/api/auth/refresh')) {
+        return Promise.resolve(
+          problemResponse(503, { status: 503, code: 'Unavailable', detail: 'Service unavailable.' }),
+        )
+      }
+
+      return Promise.resolve(
+        problemResponse(401, { status: 401, code: 'Unauthorized', detail: 'Authentication is required.' }),
+      )
+    })
+
+    const error = (await catchError(request('/api/tasks'))) as ApiError
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.status).toBe(401)
+    expect(handler).not.toHaveBeenCalled()
+    expect(tokenStorage.getAccessToken()).toBe('old')
+    expect(tokenStorage.getRefreshToken()).toBe('refresh-1')
+  })
+
+  it('keeps the session when the refresh request cannot reach the server', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    tokenStorage.set({
+      accessToken: 'old',
+      refreshToken: 'refresh-1',
+      expiresAt: '2020-01-01T00:00:00Z',
+    })
+
+    fetchMock.mockImplementation((input) => {
+      const url = String(input)
+
+      if (url.endsWith('/api/auth/refresh')) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+
+      return Promise.resolve(
+        problemResponse(401, { status: 401, code: 'Unauthorized', detail: 'Authentication is required.' }),
+      )
+    })
+
+    const error = (await catchError(request('/api/tasks'))) as ApiError
+
+    expect(error.status).toBe(401)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('calls the unauthorized handler when the refresh token is rejected with 400', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    tokenStorage.set({
+      accessToken: 'old',
+      refreshToken: 'refresh-1',
+      expiresAt: '2020-01-01T00:00:00Z',
+    })
+
+    fetchMock.mockImplementation((input) => {
+      const url = String(input)
+
+      if (url.endsWith('/api/auth/refresh')) {
+        return Promise.resolve(
+          problemResponse(400, {
+            status: 400,
+            code: 'InvalidRefreshToken',
+            detail: 'Invalid refresh token.',
+          }),
+        )
+      }
+
+      return Promise.resolve(
+        problemResponse(401, { status: 401, code: 'Unauthorized', detail: 'Authentication is required.' }),
+      )
+    })
+
+    await expect(request('/api/tasks')).rejects.toBeInstanceOf(ApiError)
+
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
   it('retries with a newer token from another tab without refreshing', async () => {
     tokenStorage.set({
       accessToken: 'old',
