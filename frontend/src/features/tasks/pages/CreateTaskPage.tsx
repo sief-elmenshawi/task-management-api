@@ -7,6 +7,7 @@ import { FormField } from '../../../shared/components/FormField'
 import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { mapFieldErrors } from '../../../shared/utils/mapFieldErrors'
 import { tasksApi } from '../api'
+import { clearTaskDraft, loadTaskDraft, saveTaskDraft } from '../draft'
 import { descriptionMaxLength, taskPriorities, titleMaxLength } from '../types'
 import type { CreateTaskValues, TaskPriority } from '../types'
 import { validateCreateTask, type FieldErrors } from '../validation'
@@ -24,17 +25,15 @@ export function CreateTaskPage() {
   useDocumentTitle('New task')
 
   const navigate = useNavigate()
-  const [values, setValues] = useState<CreateTaskValues>({
-    title: '',
-    description: '',
-    priority: '',
-  })
+  const [values, setValues] = useState<CreateTaskValues>(() => loadTaskDraft())
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   function update(field: keyof CreateTaskValues, value: string) {
-    setValues((current) => ({ ...current, [field]: value }))
+    const next = { ...values, [field]: value }
+    setValues(next)
+    saveTaskDraft(next)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -55,6 +54,7 @@ export function CreateTaskPage() {
         description: values.description.trim() === '' ? null : values.description,
         priority: values.priority as TaskPriority,
       })
+      clearTaskDraft()
       navigate('/tasks')
     } catch (error) {
       if (error instanceof ApiError) {

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +21,7 @@ function renderPage() {
 describe('CreateTaskPage', () => {
   beforeEach(() => {
     vi.mocked(tasksApi.create).mockReset()
+    sessionStorage.clear()
   })
 
   it('shows the API duplicate message when the title already exists today', async () => {
@@ -54,5 +55,39 @@ describe('CreateTaskPage', () => {
     expect(screen.getByText('Title is required.')).toBeInTheDocument()
     expect(screen.getByText('Priority is required.')).toBeInTheDocument()
     expect(tasksApi.create).not.toHaveBeenCalled()
+  })
+
+  it('restores a saved draft on mount', () => {
+    sessionStorage.setItem(
+      'taskmanager.createTaskDraft',
+      JSON.stringify({ title: 'Write the report', description: 'Some notes', priority: 'High' }),
+    )
+
+    renderPage()
+
+    expect(screen.getByLabelText('Title')).toHaveValue('Write the report')
+    expect(screen.getByLabelText('Description')).toHaveValue('Some notes')
+    expect(screen.getByLabelText('Priority')).toHaveValue('High')
+  })
+
+  it('clears the draft after a successful submit', async () => {
+    vi.mocked(tasksApi.create).mockResolvedValue({
+      id: '1',
+      title: 'Write the report',
+      description: null,
+      status: 'Pending',
+      priority: 'High',
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.type(screen.getByLabelText('Title'), 'Write the report')
+    await user.selectOptions(screen.getByLabelText('Priority'), 'High')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+
+    await waitFor(() => expect(tasksApi.create).toHaveBeenCalled())
+    expect(sessionStorage.getItem('taskmanager.createTaskDraft')).toBeNull()
   })
 })
