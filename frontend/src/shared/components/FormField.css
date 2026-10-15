@@ -1,0 +1,38 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field__label {
+  font-weight: 600;
+}
+
+.field__hint,
+.field__error {
+  font-size: 14px;
+}
+
+.field__hint {
+  color: var(--muted);
+}
+
+.field__error {
+  color: var(--danger);
+}
+
+.field input,
+.field textarea,
+.field select {
+  min-height: var(--control-min-height);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.field input[aria-invalid='true'],
+.field textarea[aria-invalid='true'],
+.field select[aria-invalid='true'] {
+  border-color: var(--danger);
+}

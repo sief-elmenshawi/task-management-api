@@ -1,0 +1,39 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.badge--pending {
+  background: var(--badge-pending-bg);
+  color: var(--badge-pending-ink);
+}
+
+.badge--inProgress {
+  background: var(--badge-in-progress-bg);
+  color: var(--badge-in-progress-ink);
+}
+
+.badge--done {
+  background: var(--badge-done-bg);
+  color: var(--badge-done-ink);
+}
+
+.badge--high {
+  background: var(--badge-high-bg);
+  color: var(--badge-high-ink);
+}
+
+.badge--medium {
+  background: var(--badge-medium-bg);
+  color: var(--badge-medium-ink);
+}
+
+.badge--low {
+  background: var(--badge-low-bg);
+  color: var(--badge-low-ink);
+}

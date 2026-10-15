@@ -1,0 +1,17 @@
+.empty-state {
+  padding: 48px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  text-align: center;
+}
+
+.empty-state__title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.empty-state__message {
+  margin-top: 8px;
+  color: var(--muted);
+}
