@@ -149,9 +149,16 @@ public class TaskProcessingWorkerTests
         var worker = CreateWorker(out var provider);
         using var _ = provider;
 
-        _tasks.GetPendingAsync(Arg.Any<CancellationToken>()).Returns(new List<Guid>());
+        var recoveryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _tasks.GetPendingAsync(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                recoveryStarted.TrySetResult();
+                return Task.FromResult<IReadOnlyList<Guid>>(new List<Guid>());
+            });
 
         await worker.StartAsync(CancellationToken.None);
+        await recoveryStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await worker.StopAsync(CancellationToken.None);
 
         await _tasks.Received().GetPendingAsync(Arg.Any<CancellationToken>());
@@ -255,6 +262,19 @@ public class TaskProcessingWorkerTests
             _tasks.GetByIdAsync(task.Id, Arg.Any<CancellationToken>()).Returns(task);
         }
 
+        var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var savedCount = 0;
+        _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                if (Interlocked.Increment(ref savedCount) == tasks.Count)
+                {
+                    processed.TrySetResult();
+                }
+
+                return Task.FromResult(1);
+            });
+
         await worker.StartAsync(CancellationToken.None);
 
         foreach (var task in tasks)
@@ -262,22 +282,11 @@ public class TaskProcessingWorkerTests
             await _queue.EnqueueAsync(task.Id);
         }
 
-        await WaitUntilAsync(
-            () => tasks.All(task => task.Status == TaskItemStatus.InProgress),
-            TimeSpan.FromSeconds(5));
+        await processed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await worker.StopAsync(CancellationToken.None);
 
         tasks.Should().OnlyContain(task => task.Status == TaskItemStatus.InProgress);
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (!condition() && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
     }
 
     private sealed class TestWorker : TaskProcessingWorker
