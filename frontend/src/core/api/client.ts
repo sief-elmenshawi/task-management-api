@@ -16,28 +16,56 @@ type Problem = {
   fieldErrors: Record<string, string[]>
 }
 
+type RefreshResponse = {
+  accessToken: string
+  refreshToken: string
+  expiresAt: string
+}
+
 type UnauthorizedHandler = () => void
 
 let unauthorizedHandler: UnauthorizedHandler | null = null
+let refreshInFlight: Promise<void> | null = null
 
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
   unauthorizedHandler = handler
 }
 
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, auth = true, skipUnauthorizedHandler = false, signal } = options
+export function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return send<T>(path, options, true)
+}
 
-  const headers = new Headers({ Accept: 'application/json' })
+export const api = {
+  get<T>(path: string, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<T> {
+    return request<T>(path, { ...options, method: 'GET' })
+  },
 
-  if (body !== undefined) {
-    headers.set('Content-Type', 'application/json')
+  post<T>(path: string, body: unknown, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<T> {
+    return request<T>(path, { ...options, method: 'POST', body })
+  },
+
+  patch<T>(path: string, body: unknown, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<T> {
+    return request<T>(path, { ...options, method: 'PATCH', body })
+  },
+
+  delete<T>(path: string, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<T> {
+    return request<T>(path, { ...options, method: 'DELETE' })
+  },
+}
+
+async function send<T>(path: string, options: RequestOptions, canRetry: boolean): Promise<T> {
+  const method = options.method ?? 'GET'
+  const auth = options.auth ?? true
+  const skipUnauthorizedHandler = options.skipUnauthorizedHandler ?? false
+
+  const usedAccessToken = auth ? tokenStorage.getAccessToken() : null
+
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json'
   }
-
-  if (auth) {
-    const token = tokenStorage.getAccessToken()
-    if (token !== null) {
-      headers.set('Authorization', `Bearer ${token}`)
-    }
+  if (auth && usedAccessToken !== null) {
+    headers.Authorization = `Bearer ${usedAccessToken}`
   }
 
   let response: Response
@@ -46,8 +74,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     response = await fetch(`${apiUrl}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: options.signal,
     })
   } catch {
     throw new ApiError({ status: 0, code: 'NetworkError', message: 'Cannot reach the server' })
@@ -69,8 +97,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const retryAfterSeconds = parseRetryAfter(response.headers.get('Retry-After'))
   const problem = await readProblem(response)
 
-  if (response.status === 401 && !skipUnauthorizedHandler && unauthorizedHandler !== null) {
-    unauthorizedHandler()
+  if (response.status === 401 && auth && !skipUnauthorizedHandler) {
+    if (canRetry && (await tryRefreshSession(usedAccessToken))) {
+      return await send<T>(path, options, false)
+    }
+
+    if (unauthorizedHandler !== null) {
+      unauthorizedHandler()
+    }
   }
 
   throw new ApiError({
@@ -82,22 +116,48 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   })
 }
 
-export const api = {
-  get<T>(path: string, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<T> {
-    return request<T>(path, { ...options, method: 'GET' })
-  },
+async function tryRefreshSession(failedAccessToken: string | null): Promise<boolean> {
+  try {
+    await refreshSession(failedAccessToken)
+    return true
+  } catch {
+    return false
+  }
+}
 
-  post<T>(path: string, body: unknown, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<T> {
-    return request<T>(path, { ...options, method: 'POST', body })
-  },
+async function refreshSession(failedAccessToken: string | null): Promise<void> {
+  const currentAccessToken = tokenStorage.getAccessToken()
+  if (currentAccessToken !== null && currentAccessToken !== failedAccessToken) {
+    return
+  }
 
-  patch<T>(path: string, body: unknown, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<T> {
-    return request<T>(path, { ...options, method: 'PATCH', body })
-  },
+  if (refreshInFlight === null) {
+    refreshInFlight = performRefresh().finally(() => {
+      refreshInFlight = null
+    })
+  }
 
-  delete<T>(path: string, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<T> {
-    return request<T>(path, { ...options, method: 'DELETE' })
-  },
+  await refreshInFlight
+}
+
+async function performRefresh(): Promise<void> {
+  const refreshToken = tokenStorage.getRefreshToken()
+  if (refreshToken === null) {
+    throw new ApiError({ status: 401, code: 'NoRefreshToken', message: 'Your session has expired.' })
+  }
+
+  const tokens = await send<RefreshResponse>(
+    '/api/auth/refresh',
+    {
+      method: 'POST',
+      body: { refreshToken },
+      auth: false,
+      skipUnauthorizedHandler: true,
+    },
+    false,
+  )
+
+  tokenStorage.set(tokens)
 }
 
 async function readProblem(response: Response): Promise<Problem> {
