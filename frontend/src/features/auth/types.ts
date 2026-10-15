@@ -10,8 +10,7 @@ export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 export type AuthResponse = {
   accessToken: string
   refreshToken: string
-  expiresAtUtc: string
-  user: AuthUser
+  expiresAt: string
 }
 
 export type UserResponse = {

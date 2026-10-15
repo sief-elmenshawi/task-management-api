@@ -16,8 +16,8 @@ export const authApi = {
   register(
     body: { name: string; email: string; password: string; confirmPassword: string },
     options: Options = {},
-  ): Promise<AuthResponse> {
-    return api.post<AuthResponse>('/api/auth/register', body, {
+  ): Promise<UserResponse> {
+    return api.post<UserResponse>('/api/auth/register', body, {
       auth: false,
       skipUnauthorizedHandler: true,
       ...options,
