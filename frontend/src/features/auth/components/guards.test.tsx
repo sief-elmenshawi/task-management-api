@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { AuthContext } from '../context'
@@ -7,13 +8,19 @@ import type { AuthContextValue, AuthStatus, AuthUser } from '../types'
 import { ProtectedRoute } from './ProtectedRoute'
 import { RoleRoute } from './RoleRoute'
 
-function authValue(status: AuthStatus, user: AuthUser | null): AuthContextValue {
+function authValue(
+  status: AuthStatus,
+  user: AuthUser | null,
+  overrides: Partial<AuthContextValue> = {},
+): AuthContextValue {
   return {
     status,
     user,
     login: vi.fn(async () => undefined),
     register: vi.fn(async () => undefined),
     logout: vi.fn(),
+    retrySession: vi.fn(),
+    ...overrides,
   }
 }
 
@@ -41,6 +48,22 @@ describe('ProtectedRoute', () => {
 
     expect(screen.getByRole('status')).toBeInTheDocument()
     expect(screen.queryByText('secret')).not.toBeInTheDocument()
+  })
+
+  it('shows a retry state when the session check fails with a transient error', async () => {
+    const user = userEvent.setup()
+    const retrySession = vi.fn()
+
+    renderRoute(
+      authValue('error', null, { retrySession }),
+      <ProtectedRoute>
+        <div>secret</div>
+      </ProtectedRoute>,
+    )
+
+    expect(screen.queryByText('secret')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(retrySession).toHaveBeenCalledTimes(1)
   })
 
   it('redirects to the login page when unauthenticated', () => {

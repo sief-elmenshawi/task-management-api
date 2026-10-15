@@ -7,7 +7,7 @@ export type AuthUser = {
   role: UserRole
 }
 
-export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error'
 
 export type AuthResponse = {
   accessToken: string
@@ -42,4 +42,5 @@ export type AuthContextValue = {
   login: (values: LoginValues) => Promise<void>
   register: (values: RegisterValues) => Promise<void>
   logout: () => void
+  retrySession: () => void
 }

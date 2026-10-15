@@ -36,6 +36,7 @@ function renderPage() {
     login: vi.fn(async () => undefined),
     register: vi.fn(async () => undefined),
     logout: vi.fn(),
+    retrySession: vi.fn(),
   }
 
   return render(

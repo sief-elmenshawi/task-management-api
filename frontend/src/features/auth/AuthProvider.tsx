@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ApiError } from '../../core/api/ApiError'
 import { setUnauthorizedHandler } from '../../core/api/client'
 import { tokenStorage } from '../../core/storage/tokenStorage'
+import { clearTaskDraft } from '../tasks/draft'
 import { authApi } from './api'
 import { AuthContext } from './context'
 import type { AuthContextValue, AuthStatus, AuthUser, LoginValues, RegisterValues } from './types'
@@ -12,6 +14,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>(() =>
     tokenStorage.getAccessToken() === null ? 'unauthenticated' : 'loading',
   )
+  const [reloadToken, setReloadToken] = useState(0)
 
   const clearSession = useCallback(() => {
     tokenStorage.clear()
@@ -45,18 +48,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ id: profile.id, name: profile.name, email: profile.email, role: profile.role })
         setStatus('authenticated')
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (cancelled) {
           return
         }
 
-        clearSession()
+        if (error instanceof ApiError && error.status === 401) {
+          clearSession()
+          return
+        }
+
+        setStatus('error')
       })
 
     return () => {
       cancelled = true
     }
-  }, [clearSession])
+  }, [clearSession, reloadToken])
+
+  const retrySession = useCallback(() => {
+    setStatus(tokenStorage.getAccessToken() === null ? 'unauthenticated' : 'loading')
+    setReloadToken((token) => token + 1)
+  }, [])
 
   const login = useCallback(async (values: LoginValues) => {
     const tokens = await authApi.login(values)
@@ -76,13 +89,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void authApi.logout({ refreshToken }).catch(() => undefined)
 
+    if (user !== null) {
+      clearTaskDraft(user.id)
+    }
+
     clearSession()
     navigate('/login')
-  }, [clearSession, navigate])
+  }, [clearSession, navigate, user])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, login, register, logout }),
-    [status, user, login, register, logout],
+    () => ({ status, user, login, register, logout, retrySession }),
+    [status, user, login, register, logout, retrySession],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
