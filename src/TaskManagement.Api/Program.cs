@@ -44,7 +44,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("Default", policy =>
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .WithExposedHeaders("Retry-After", "Location"));
 });
 
 builder.Services.AddSwaggerDocs();
