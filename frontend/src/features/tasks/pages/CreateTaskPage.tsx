@@ -6,6 +6,7 @@ import { Button } from '../../../shared/components/Button'
 import { FormField } from '../../../shared/components/FormField'
 import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { mapFieldErrors } from '../../../shared/utils/mapFieldErrors'
+import { useAuth } from '../../auth/context'
 import { tasksApi } from '../api'
 import { clearTaskDraft, loadTaskDraft, saveTaskDraft } from '../draft'
 import { descriptionMaxLength, taskPriorities, titleMaxLength } from '../types'
@@ -25,7 +26,9 @@ export function CreateTaskPage() {
   useDocumentTitle('New task')
 
   const navigate = useNavigate()
-  const [values, setValues] = useState<CreateTaskValues>(() => loadTaskDraft())
+  const { user } = useAuth()
+  const userId = user?.id ?? ''
+  const [values, setValues] = useState<CreateTaskValues>(() => loadTaskDraft(userId))
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -33,7 +36,7 @@ export function CreateTaskPage() {
   function update(field: keyof CreateTaskValues, value: string) {
     const next = { ...values, [field]: value }
     setValues(next)
-    saveTaskDraft(next)
+    saveTaskDraft(userId, next)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -54,7 +57,7 @@ export function CreateTaskPage() {
         description: values.description.trim() === '' ? null : values.description,
         priority: values.priority as TaskPriority,
       })
-      clearTaskDraft()
+      clearTaskDraft(userId)
       navigate('/tasks')
     } catch (error) {
       if (error instanceof ApiError) {

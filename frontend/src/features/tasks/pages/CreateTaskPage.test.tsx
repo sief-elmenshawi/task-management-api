@@ -3,18 +3,36 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../../core/api/ApiError'
+import { AuthContext } from '../../auth/context'
+import type { AuthContextValue } from '../../auth/types'
 import { tasksApi } from '../api'
+import { taskDraftKey } from '../draft'
 import { CreateTaskPage } from './CreateTaskPage'
 
 vi.mock('../api', () => ({
   tasksApi: { create: vi.fn() },
 }))
 
+const userId = 'user-1'
+
+function authValue(): AuthContextValue {
+  return {
+    status: 'authenticated',
+    user: { id: userId, name: 'Ada', email: 'ada@example.com', role: 'User' },
+    login: vi.fn(async () => undefined),
+    register: vi.fn(async () => undefined),
+    logout: vi.fn(),
+    retrySession: vi.fn(),
+  }
+}
+
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <CreateTaskPage />
-    </MemoryRouter>,
+    <AuthContext.Provider value={authValue()}>
+      <MemoryRouter>
+        <CreateTaskPage />
+      </MemoryRouter>
+    </AuthContext.Provider>,
   )
 }
 
@@ -59,7 +77,7 @@ describe('CreateTaskPage', () => {
 
   it('restores a saved draft on mount', () => {
     sessionStorage.setItem(
-      'taskmanager.createTaskDraft',
+      taskDraftKey(userId),
       JSON.stringify({ title: 'Write the report', description: 'Some notes', priority: 'High' }),
     )
 
@@ -88,6 +106,6 @@ describe('CreateTaskPage', () => {
     await user.click(screen.getByRole('button', { name: 'Create task' }))
 
     await waitFor(() => expect(tasksApi.create).toHaveBeenCalled())
-    expect(sessionStorage.getItem('taskmanager.createTaskDraft')).toBeNull()
+    expect(sessionStorage.getItem(taskDraftKey(userId))).toBeNull()
   })
 })

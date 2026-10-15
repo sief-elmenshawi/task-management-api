@@ -1,44 +1,46 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { clearTaskDraft, emptyTaskDraft, loadTaskDraft, saveTaskDraft } from './draft'
+import { clearTaskDraft, loadTaskDraft, saveTaskDraft, taskDraftKey } from './draft'
+
+const userId = 'user-1'
+const otherUserId = 'user-2'
 
 describe('task draft', () => {
   beforeEach(() => {
     sessionStorage.clear()
   })
 
-  it('returns an empty draft when nothing is stored', () => {
-    expect(loadTaskDraft()).toEqual(emptyTaskDraft)
+  it('returns an empty draft when nothing is saved', () => {
+    expect(loadTaskDraft(userId)).toEqual({ title: '', description: '', priority: '' })
   })
 
-  it('round-trips a saved draft', () => {
-    saveTaskDraft({ title: 'Write report', description: 'Draft body', priority: 'High' })
+  it('restores a saved draft', () => {
+    saveTaskDraft(userId, { title: 'Write the report', description: 'Some notes', priority: 'High' })
 
-    expect(loadTaskDraft()).toEqual({
-      title: 'Write report',
-      description: 'Draft body',
+    expect(loadTaskDraft(userId)).toEqual({
+      title: 'Write the report',
+      description: 'Some notes',
       priority: 'High',
     })
   })
 
-  it('ignores a corrupted draft', () => {
-    sessionStorage.setItem('taskmanager.createTaskDraft', '{not json')
+  it('keeps drafts separate per user', () => {
+    saveTaskDraft(userId, { title: 'Mine', description: '', priority: 'High' })
 
-    expect(loadTaskDraft()).toEqual(emptyTaskDraft)
+    expect(loadTaskDraft(otherUserId)).toEqual({ title: '', description: '', priority: '' })
+    expect(loadTaskDraft(userId)).toEqual({ title: 'Mine', description: '', priority: 'High' })
   })
 
-  it('drops an unknown priority', () => {
-    sessionStorage.setItem(
-      'taskmanager.createTaskDraft',
-      JSON.stringify({ title: 'x', description: 'y', priority: 'Urgent' }),
-    )
+  it('clears only the given user draft', () => {
+    saveTaskDraft(userId, { title: 'Mine', description: '', priority: 'High' })
+    saveTaskDraft(otherUserId, { title: 'Theirs', description: '', priority: 'Low' })
 
-    expect(loadTaskDraft()).toEqual({ title: 'x', description: 'y', priority: '' })
+    clearTaskDraft(userId)
+
+    expect(loadTaskDraft(userId)).toEqual({ title: '', description: '', priority: '' })
+    expect(loadTaskDraft(otherUserId)).toEqual({ title: 'Theirs', description: '', priority: 'Low' })
   })
 
-  it('clears the draft', () => {
-    saveTaskDraft({ title: 'Write report', description: '', priority: 'Low' })
-    clearTaskDraft()
-
-    expect(loadTaskDraft()).toEqual(emptyTaskDraft)
+  it('namespaces the storage key with the user id', () => {
+    expect(taskDraftKey(userId)).toBe('taskmanager.createTaskDraft.user-1')
   })
 })

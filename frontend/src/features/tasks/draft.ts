@@ -1,7 +1,11 @@
 import { taskPriorities } from './types'
 import type { CreateTaskValues, TaskPriority } from './types'
 
-const draftKey = 'taskmanager.createTaskDraft'
+const draftKeyPrefix = 'taskmanager.createTaskDraft'
+
+export function taskDraftKey(userId: string): string {
+  return `${draftKeyPrefix}.${userId}`
+}
 
 export const emptyTaskDraft: CreateTaskValues = {
   title: '',
@@ -13,10 +17,10 @@ function isPriority(value: unknown): value is TaskPriority | '' {
   return value === '' || taskPriorities.includes(value as TaskPriority)
 }
 
-export function loadTaskDraft(): CreateTaskValues {
+export function loadTaskDraft(userId: string): CreateTaskValues {
   let raw: string | null
   try {
-    raw = sessionStorage.getItem(draftKey)
+    raw = sessionStorage.getItem(taskDraftKey(userId))
   } catch {
     return { ...emptyTaskDraft }
   }
@@ -42,17 +46,17 @@ export function loadTaskDraft(): CreateTaskValues {
   }
 }
 
-export function saveTaskDraft(values: CreateTaskValues): void {
+export function saveTaskDraft(userId: string, values: CreateTaskValues): void {
   try {
-    sessionStorage.setItem(draftKey, JSON.stringify(values))
+    sessionStorage.setItem(taskDraftKey(userId), JSON.stringify(values))
   } catch {
     return
   }
 }
 
-export function clearTaskDraft(): void {
+export function clearTaskDraft(userId: string): void {
   try {
-    sessionStorage.removeItem(draftKey)
+    sessionStorage.removeItem(taskDraftKey(userId))
   } catch {
     return
   }
