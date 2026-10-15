@@ -1,8 +1,10 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { ProtectedRoute } from '../features/auth/components/ProtectedRoute'
 import { RoleRoute } from '../features/auth/components/RoleRoute'
 import { LoginPage } from '../features/auth/pages/LoginPage'
 import { RegisterPage } from '../features/auth/pages/RegisterPage'
+import { CreateTaskPage } from '../features/tasks/pages/CreateTaskPage'
+import { TaskDetailsPage } from '../features/tasks/pages/TaskDetailsPage'
 import { TasksPage } from '../features/tasks/pages/TasksPage'
 import { UsersPage } from '../features/users/pages/UsersPage'
 import { NotFoundPage } from '../shared/pages/NotFoundPage'
@@ -17,12 +19,16 @@ export const router = createBrowserRouter([
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       {
-        path: 'tasks',
         element: (
           <ProtectedRoute>
-            <TasksPage />
+            <Outlet />
           </ProtectedRoute>
         ),
+        children: [
+          { path: 'tasks', element: <TasksPage /> },
+          { path: 'tasks/new', element: <CreateTaskPage /> },
+          { path: 'tasks/:id', element: <TaskDetailsPage /> },
+        ],
       },
       {
         path: 'users',
