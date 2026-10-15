@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        setUser({ name: profile.name, role: profile.role })
+        setUser({ id: profile.id, name: profile.name, email: profile.email, role: profile.role })
         setStatus('authenticated')
       })
       .catch(() => {
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokenStorage.set(tokens)
 
     const profile = await authApi.me()
-    setUser({ name: profile.name, role: profile.role })
+    setUser({ id: profile.id, name: profile.name, email: profile.email, role: profile.role })
     setStatus('authenticated')
   }, [])
 

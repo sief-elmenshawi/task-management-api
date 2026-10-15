@@ -57,7 +57,7 @@ describe('ProtectedRoute', () => {
 
   it('renders its children when authenticated', () => {
     renderRoute(
-      authValue('authenticated', { name: 'Ada', role: 'User' }),
+      authValue('authenticated', { id: '1', name: 'Ada', email: 'ada@example.com', role: 'User' }),
       <ProtectedRoute>
         <div>secret</div>
       </ProtectedRoute>,
@@ -70,7 +70,7 @@ describe('ProtectedRoute', () => {
 describe('RoleRoute', () => {
   it('shows access denied for the wrong role', () => {
     renderRoute(
-      authValue('authenticated', { name: 'Ada', role: 'User' }),
+      authValue('authenticated', { id: '1', name: 'Ada', email: 'ada@example.com', role: 'User' }),
       <RoleRoute role="Admin">
         <div>admin area</div>
       </RoleRoute>,
@@ -82,7 +82,7 @@ describe('RoleRoute', () => {
 
   it('renders its children for the required role', () => {
     renderRoute(
-      authValue('authenticated', { name: 'Admin', role: 'Admin' }),
+      authValue('authenticated', { id: '2', name: 'Admin', email: 'admin@example.com', role: 'Admin' }),
       <RoleRoute role="Admin">
         <div>admin area</div>
       </RoleRoute>,

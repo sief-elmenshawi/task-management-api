@@ -1,7 +1,9 @@
 export type UserRole = 'User' | 'Admin'
 
 export type AuthUser = {
+  id: string
   name: string
+  email: string
   role: UserRole
 }
 
