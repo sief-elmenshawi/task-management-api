@@ -28,3 +28,25 @@ only allows that origin in CORS).
 
 The endpoints, payloads, validation limits and error shapes this app consumes
 are documented in [`docs/api-contract.md`](docs/api-contract.md).
+
+## Enhancements
+
+- **Draft protection:** the create-task form writes what you type to
+  `sessionStorage` and restores it on mount, so a session that expires while the
+  form is open does not lose the draft; the draft is cleared once the task is
+  created. Why: a silent logout should never cost the user their typing.
+- **No wasted requests:** the task list polls only while a task is `Pending`
+  and the tab is visible, the title search is debounced, and every effect
+  aborts its fetch and clears its timer on unmount. Why: React StrictMode
+  double-invokes effects, so cleanup keeps the double mount from leaving
+  duplicate polling timers or stale responses behind.
+- **Clear feedback:** submit buttons disable and show a spinner while a request
+  is in flight, the typed values stay after a server error, and `429` responses
+  show the readable `Retry-After` wait time (the API now exposes that header
+  through CORS). Why: the user always knows a request is running and, when
+  throttled, exactly how long to wait.
+- **Silent token refresh:** on a `401` the API client calls
+  `POST /api/auth/refresh` once with single-flight semantics and retries the
+  original request. Why: an expired access token is renewed without
+  interrupting the user, while concurrent requests share one refresh call and a
+  failed refresh logs out with the session-expired message.
