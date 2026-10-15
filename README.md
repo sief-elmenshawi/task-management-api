@@ -1,6 +1,7 @@
 # TaskManagement
 
-A simple, clean task management backend API built with ASP.NET Core following Onion Architecture.
+A full-stack task management solution: an ASP.NET Core API following Onion Architecture (this
+readme), plus a React + TypeScript single-page app in [`frontend/`](frontend/README.md).
 
 
 ## Architecture
@@ -49,11 +50,11 @@ Persistence detail: `Priority` is stored as an `int` (while `Status` is stored a
 
 - Docker Desktop (for the full-stack option)
 - .NET 10 SDK (only for running without Docker or running the tests)
-- Node.js (only for the Postman/Newman run, via `npx newman`)
+- Node.js 20+ (for the frontend dev server and the Postman/Newman run, via `npx newman`)
 
 ## Quick start (Docker, whole stack)
 
-Everything - SQL Server, Redis and the API - runs from Compose.
+Everything - SQL Server, Redis, the API and the frontend - runs from Compose.
 
 ```bash
 cp .env.example .env
@@ -62,12 +63,22 @@ docker compose up --build
 
 Then open:
 
+- Frontend SPA: <http://localhost:5173>
 - Swagger UI: <http://localhost:8080/swagger>
 - API base: <http://localhost:8080>
 
-`docker compose` builds the API image from `src/TaskManagement.Api/Dockerfile`, waits for SQL Server
-and Redis to become healthy, applies migrations (with retry) and seeds the admin user. The API listens
-on port `8080` inside the container; the host port comes from `API_PORT` in `.env` (default `8080`).
+`docker compose` builds the API image from `src/TaskManagement.Api/Dockerfile` and the frontend image
+from `frontend/Dockerfile`, waits for SQL Server and Redis to become healthy, applies migrations (with
+retry) and seeds the admin user. The API listens on port `8080` inside the container (host port from
+`API_PORT`, default `8080`); the frontend's nginx serves the built SPA on container port `80` with an
+SPA fallback to `index.html` (host port from `FRONTEND_PORT`, default `5173`). The frontend is built
+with `VITE_API_URL` (default `http://localhost:8080`) baked in, because the browser calls the API on
+the host - not over the Compose network.
+
+If a host port is already taken, override it for one command only, e.g.
+`FRONTEND_PORT=5273 docker compose up --build` (PowerShell:
+`$env:FRONTEND_PORT = "5273"; docker compose up --build`); when you change `FRONTEND_PORT`, set
+`CORS_ORIGIN` to the same origin so the browser is allowed to call the API.
 
 `.env` must define `JWT_KEY`; Compose fails fast if it is missing. Copy `.env.example` to get all of
 the required values with working local defaults.
@@ -77,6 +88,73 @@ default window) before retrying. The committed `.env.example` ships a demo value
 (`RATE_LIMIT_AUTH_PERMIT=1000`) so the Postman/Newman run is not throttled, while the code default
 is `10` requests per `60` seconds - the value to use in production. See
 [Rate limiting](#rate-limiting) and [Postman / Newman](#postman--newman).
+
+## Frontend (React SPA)
+
+The SPA lives in [`frontend/`](frontend/README.md): React 19 + TypeScript (strict) + Vite, React
+Router and plain CSS. It talks to the API over `fetch` and keeps the token pair in `localStorage`.
+
+### Run the frontend dev server
+
+With the API already running (Docker or [locally](#running-the-api-locally-deps-in-docker)):
+
+```bash
+cd frontend
+cp .env.example .env      # VITE_API_URL=http://localhost:8080
+npm ci
+npm run dev               # http://localhost:5173
+```
+
+The dev server is pinned to port `5173`, which matches the API's default `CORS_ORIGIN`.
+
+### Structure and architecture rules
+
+```
+frontend/src/
+  app/      app shell, router, layouts, header
+  core/     api client (fetch + single-flight token refresh), env config, token storage
+  shared/   reusable components, hooks, utils and styles (no feature code)
+  features/ auth, tasks, users (each: api, hooks, components, pages)
+```
+
+Rules: dependencies point inward (`pages -> components -> hooks -> api -> core`); `shared` never
+imports from `features`; components never call `fetch` directly; the API base URL is read only from
+`VITE_API_URL`; each feature owns its own types, API calls, hooks and pages.
+
+### Frontend commands
+
+| Command         | What it does                            |
+| --------------- | --------------------------------------- |
+| `npm run dev`   | Vite dev server on port 5173            |
+| `npm run build` | `tsc -b` then `vite build` into `dist/` |
+| `npm run lint`  | ESLint                                  |
+| `npm test`      | Vitest suite                            |
+
+## Environment variables
+
+Each app ships a committed `.env.example`; copy it to `.env` (git-ignored) and adjust.
+
+Root `.env.example` (used by Compose and `dotnet run`) - key entries:
+
+| Variable                           | Default                 | Purpose                                                                 |
+| ---------------------------------- | ----------------------- | ----------------------------------------------------------------------- |
+| `SA_PASSWORD`                      | `TaskManager@2026`      | SQL Server SA password (connection string + the `sqlserver` service).   |
+| `API_PORT`                         | `8080`                  | Host port for the API.                                                  |
+| `CORS_ORIGIN`                      | `http://localhost:5173` | Allowed browser origin; must match where the SPA is served.             |
+| `FRONTEND_PORT`                    | `5173`                  | Host port for the frontend (nginx listens on container port `80`).      |
+| `VITE_API_URL`                     | `http://localhost:8080` | API URL baked into the SPA at build time (must be browser-reachable).   |
+| `JWT_KEY`                          | (required)              | JWT signing key; Compose fails fast when it is missing.                 |
+
+The worker, rate-limit and refresh-token variables are documented in the file itself and under
+[Configuration](#configuration).
+
+`frontend/.env.example` (local dev server only - the Docker image gets `VITE_API_URL` as a build arg):
+
+| Variable       | Default                 | Purpose                                          |
+| -------------- | ----------------------- | ------------------------------------------------ |
+| `VITE_API_URL` | `http://localhost:8080` | Base URL of the API the browser calls.           |
+
+`CORS_ORIGIN` (API) and the origin serving the SPA must match, or the browser blocks the API calls.
 
 ## How to try it in Swagger
 
@@ -430,5 +508,66 @@ limit back to `10`) to observe the `429` response.
   endpoint.
 - `RowVersion` is an EF concurrency token; concurrent status updates surface as `409 Conflict`
   (`ConcurrencyConflict`).
+
+## Changes since Stage 1
+
+Stage 1 delivered the backend. The only backend change made while building the frontend is:
+
+- **CORS: expose `Retry-After` and `Location`** in the `Default` policy
+  (`src/TaskManagement.Api/Program.cs`, `.WithExposedHeaders("Retry-After", "Location")`). Why: without
+  this the browser cannot read those response headers cross-origin, so the SPA could not show a
+  readable "try again in N seconds" message for `429` (rate limiting) or follow `Location` for
+  `201 Created`. The allowed origins are unchanged.
+
+No other backend code, configuration or wire contract changed; endpoints, payloads and error shapes
+are as in Stage 1.
+
+## Assumptions
+
+- The browser calls the API directly at `VITE_API_URL` (default `http://localhost:8080`); there is no
+  reverse proxy in front of the API, so CORS must allow the SPA origin.
+- The SPA is served from `http://localhost:5173` by default (Vite dev server or the nginx container),
+  matching the API's default `CORS_ORIGIN`.
+- Enums are strings on the wire and errors are RFC 7807 `application/problem+json`; the client is built
+  around that contract.
+- The Docker stack is for local/demo use: the committed `JWT_KEY`, `SA_PASSWORD` and seeded admin
+  credentials are development values, not secrets for a real deployment.
+- Google Fonts is loaded from the CDN; without network access the SPA still works with a fallback font.
+
+## Enhancements
+
+Frontend additions beyond a bare CRUD UI (each with the reason):
+
+- **Refresh-token flow with single-flight** - a protected `401` triggers one `POST /api/auth/refresh`
+  shared by all concurrent `401`s, then the original request is retried once. Why: an expired access
+  token is renewed silently, and concurrent requests cannot fire duplicate refreshes (which the API's
+  rotation/reuse detection would treat as an attack).
+- **`401` handling in one place** - the API client owns auth/session/refresh logic; when a refresh
+  fails it calls a single unauthorized handler that logs out and shows the session-expired message.
+  Why: features stay free of auth plumbing and the behavior is consistent everywhere.
+- **Draft protection** - the create-task form persists to `sessionStorage` while typing and restores
+  on mount (cleared on success). Why: a session that expires while the form is open does not lose the
+  user's typing.
+- **No wasted requests** - the list polls only while a task is `Pending` and the tab is visible,
+  effects abort their fetch on unmount, and search is debounced. Why: fewer needless calls and no
+  duplicate work from React StrictMode's double-invoked effects.
+- **Usability** - submit buttons disable and show a spinner while a request runs, inputs keep their
+  values after a server error, and `429` responses show the readable `Retry-After` wait time. Why: the
+  user always knows a request is running and, when throttled, exactly how long to wait.
+
+## Unfinished or limitations
+
+- No automated browser end-to-end suite (Playwright/Cypress). The SPA is covered by component/unit
+  tests; the token-refresh, logout-on-failed-refresh and draft behaviors are verified with a mocked
+  `fetch`, not driven through a real browser.
+- `VITE_API_URL` is baked into the bundle at build time, so changing the API URL requires rebuilding
+  the frontend image (there is no runtime-config endpoint).
+- The frontend image serves static files only; it does not proxy the API, so the API must be reachable
+  from the browser and its CORS origin must match.
+
+## AI tools used
+
+Used OpenCode to generate code from detailed prompts I wrote (architecture, requirements,
+conventions). I reviewed, ran and tested every change and I can explain every line.
 
 
