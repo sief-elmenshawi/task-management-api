@@ -50,11 +50,15 @@ Persistence detail: `Priority` is stored as an `int` (while `Status` is stored a
 
 - Docker Desktop (for the full-stack option)
 - .NET 10 SDK (only for running without Docker or running the tests)
-- Node.js 20+ (for the frontend dev server and the Postman/Newman run, via `npx newman`)
+- Node.js 22.12+ (for the frontend dev server/tests and the Postman/Newman run via `npx newman`).
+  The frontend toolchain needs a recent Node: Vite 8 requires `^20.19.0 || >=22.12.0` and Vitest 5
+  requires `^22.12.0 || ^24.0.0`, so Node 20 is not enough. Node 24 LTS is what the Docker image and
+  CI use.
 
 ## Quick start (Docker, whole stack)
 
-Everything - SQL Server, Redis, the API and the frontend - runs from Compose.
+Everything - SQL Server, Redis, the API and the frontend - runs from Compose. This is the easiest way
+for a reviewer to run the whole product: one command, with no local .NET or Node install.
 
 ```bash
 cp .env.example .env
@@ -511,7 +515,7 @@ limit back to `10`) to observe the `429` response.
 
 ## Changes since Stage 1
 
-Stage 1 delivered the backend. The only backend change made while building the frontend is:
+Stage 1 delivered the backend. The only runtime/behaviour change made while building the frontend is:
 
 - **CORS: expose `Retry-After` and `Location`** in the `Default` policy
   (`src/TaskManagement.Api/Program.cs`, `.WithExposedHeaders("Retry-After", "Location")`). Why: without
@@ -519,8 +523,14 @@ Stage 1 delivered the backend. The only backend change made while building the f
   readable "try again in N seconds" message for `429` (rate limiting) or follow `Location` for
   `201 Created`. The allowed origins are unchanged.
 
-No other backend code, configuration or wire contract changed; endpoints, payloads and error shapes
-are as in Stage 1.
+Test- and build-only changes (no runtime behaviour, endpoints, payloads or error shapes changed):
+
+- **Bumped the transitive `System.Security.Cryptography.Pkcs` to `10.0.13`** in
+  `TaskManagement.Infrastructure.csproj` to clear the NuGet audit warnings `NU1902`/`NU1903` (the
+  version pulled in through `Microsoft.Data.SqlClient` was affected by CVE-2026-84008 and
+  CVE-2026-70162). The build is now warning-free.
+- **Made the worker startup-recovery unit tests deterministic** (`TaskProcessingWorkerTests`) by
+  awaiting a `TaskCompletionSource` signal instead of fixed delays.
 
 ## Assumptions
 
