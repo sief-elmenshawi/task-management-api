@@ -1,0 +1,148 @@
+.page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page__header .page__title {
+  margin-bottom: 0;
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-row {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.task-row__title {
+  font-size: 18px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.task-row__description {
+  margin-top: 4px;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.task-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.task-row__date {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.task-row__processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.task-list__cta {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 560px;
+}
+
+.task-form__counter {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.field__label-row {
+  display: flex;
+  align-items: baseline;
+}
+
+.task-details {
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.task-details__row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.task-details__row:last-child {
+  border-bottom: none;
+}
+
+.task-details__term {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.task-details__value {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-details__status {
+  margin-top: 24px;
+}
+
+.task-details__status-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.task-details__processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.task-details__back {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 520px) {
+  .task-details__row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
