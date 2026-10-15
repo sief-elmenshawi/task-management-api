@@ -1,7 +1,15 @@
 import type { ReactNode } from 'react'
 import './Badge.css'
 
-export type BadgeTone = 'pending' | 'inProgress' | 'done' | 'high' | 'medium' | 'low'
+export type BadgeTone =
+  | 'pending'
+  | 'inProgress'
+  | 'done'
+  | 'high'
+  | 'medium'
+  | 'low'
+  | 'neutral'
+  | 'accent'
 
 export type BadgeProps = {
   tone: BadgeTone

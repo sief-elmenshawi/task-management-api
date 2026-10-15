@@ -37,3 +37,13 @@
   background: var(--badge-low-bg);
   color: var(--badge-low-ink);
 }
+
+.badge--neutral {
+  background: var(--badge-neutral-bg);
+  color: var(--badge-neutral-ink);
+}
+
+.badge--accent {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}

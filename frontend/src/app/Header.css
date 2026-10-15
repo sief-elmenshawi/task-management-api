@@ -1,0 +1,47 @@
+.app-header__bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--header-height);
+}
+
+.app-header__brand {
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.app-header__nav {
+  display: flex;
+  gap: 4px;
+}
+
+.app-header__link {
+  padding: 6px 12px;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.app-header__link--active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.app-header__user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.app-header__user-name {
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .app-header__user-name {
+    display: none;
+  }
+}
