@@ -1,23 +1,29 @@
 .app-header__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  min-height: var(--header-height);
+  gap: 8px 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .app-header__brand {
   font-weight: 700;
-  color: var(--ink);
   text-decoration: none;
+  color: var(--ink);
 }
 
 .app-header__nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
 .app-header__link {
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
   border-radius: var(--radius-control);
   color: var(--muted);
   font-weight: 600;
@@ -43,5 +49,9 @@
 @media (max-width: 640px) {
   .app-header__user-name {
     display: none;
+  }
+
+  .app-header__user {
+    margin-left: 0;
   }
 }

@@ -24,7 +24,7 @@ export function Header() {
               Tasks
             </NavLink>
             {user?.role === 'Admin' && (
-              <NavLink to="/users" className={linkClass}>
+              <NavLink to="/admin/users" className={linkClass}>
                 Users
               </NavLink>
             )}

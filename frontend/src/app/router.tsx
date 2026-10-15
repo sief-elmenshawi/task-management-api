@@ -6,6 +6,7 @@ import { RegisterPage } from '../features/auth/pages/RegisterPage'
 import { CreateTaskPage } from '../features/tasks/pages/CreateTaskPage'
 import { TaskDetailsPage } from '../features/tasks/pages/TaskDetailsPage'
 import { TasksPage } from '../features/tasks/pages/TasksPage'
+import { CreateUserPage } from '../features/users/pages/CreateUserPage'
 import { UsersPage } from '../features/users/pages/UsersPage'
 import { NotFoundPage } from '../shared/pages/NotFoundPage'
 import { RootLayout } from './RootLayout'
@@ -31,14 +32,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        path: 'users',
+        path: 'admin',
         element: (
           <ProtectedRoute>
             <RoleRoute role="Admin">
-              <UsersPage />
+              <Outlet />
             </RoleRoute>
           </ProtectedRoute>
         ),
+        children: [
+          { path: 'users', element: <UsersPage /> },
+          { path: 'users/new', element: <CreateUserPage /> },
+        ],
       },
       { path: '*', element: <NotFoundPage /> },
     ],
