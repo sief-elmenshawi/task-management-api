@@ -55,8 +55,11 @@ export function useTasks(): UseTasksResult {
           return
         }
 
-        setError(messageOf(requestError))
-        setLoading(false)
+        if (!silent) {
+          setError(messageOf(requestError))
+          setLoading(false)
+        }
+
         settle()
       })
 

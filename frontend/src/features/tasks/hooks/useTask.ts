@@ -58,14 +58,17 @@ export function useTask(id: string): UseTaskResult {
           return
         }
 
-        if (requestError instanceof ApiError && requestError.status === 404) {
-          setNotFound(true)
-          setError(null)
-        } else {
-          setError(messageOf(requestError))
+        if (!silent) {
+          if (requestError instanceof ApiError && requestError.status === 404) {
+            setNotFound(true)
+            setError(null)
+          } else {
+            setError(messageOf(requestError))
+          }
+
+          setLoading(false)
         }
 
-        setLoading(false)
         settle()
       })
 
