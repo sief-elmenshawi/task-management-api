@@ -80,9 +80,12 @@ Content-Type: application/problem+json
   successful `refresh` revokes the presented token and issues a replacement (only its SHA-256
   hash is stored server-side).
 - **Reuse grace** - a rotated token presented again within **30 s** (`RefreshToken:ReuseGraceSeconds`)
-  is a benign retry (`401 InvalidRefreshToken`); after that it is treated as theft: all of the
-  user's sessions are revoked and the response is `401 RefreshTokenReuseDetected`.
-- **Logout** revokes only the presented refresh token (one session).
+  is rejected with `401 InvalidRefreshToken` but not treated as theft; after that window it is treated
+  as theft: all of the user's sessions are revoked and the response is `401 RefreshTokenReuseDetected`.
+- **Concurrent refreshes** - concurrent refreshes with the same token yield exactly one success; the
+  others get `401 InvalidRefreshToken` (the token row is guarded by a `rowversion`).
+- **Logout** revokes only the presented refresh token (one session) and is idempotent: a rotated or
+  already-revoked token returns `204 No Content`.
 - **Seeded admin**: `admin@example.com` / `Admin@123` (role `Admin`).
 
 ## Shared shapes
@@ -171,6 +174,9 @@ Validation: `email` required + format; `password` required + at most 72 UTF-8 by
 - `400 RefreshTokenRequired`
 - `401 InvalidRefreshToken` | `401 RefreshTokenExpired` | `401 RefreshTokenReuseDetected`
 - `429 TooManyRequests`
+
+Concurrent refreshes with the same token yield exactly one `200`; the others get
+`401 InvalidRefreshToken`.
 
 #### `POST /api/auth/logout`
 

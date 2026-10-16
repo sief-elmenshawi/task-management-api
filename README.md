@@ -246,7 +246,7 @@ files.
   it from `RATE_LIMIT_AUTH_PERMIT` and `RATE_LIMIT_AUTH_WINDOW` (or
   `RateLimiting__Auth__PermitLimit`/`RateLimiting__Auth__WindowSeconds` directly).
 - `RefreshToken:ReuseGraceSeconds` - window (seconds) in which a just-rotated refresh token is treated
-  as a benign retry rather than a reuse attack (default `30`). Compose reads it from
+  as invalid (`401 InvalidRefreshToken`) rather than a reuse attack (default `30`). Compose reads it from
   `REFRESH_TOKEN_REUSE_GRACE_SECONDS`; the example `.env` lowers it to `1` so the Postman reuse
   scenario can wait past the window.
 
@@ -263,13 +263,14 @@ files.
 - **Duplicate email** - `POST /api/auth/register` returns `409 EmailAlreadyExists` when the email is
   already taken. The check is backed by a filtered unique index, so a concurrent insert that loses
   the race maps the SQL `2601`/`2627` error to the same `409`.
-- **Reuse detection** - a rotated token is treated as a benign retry while it is within a configurable
-  grace window (`RefreshToken:ReuseGraceSeconds`, default `30`; the example `.env` sets
-  `REFRESH_TOKEN_REUSE_GRACE_SECONDS=1`). Once the window has elapsed, presenting the rotated token is
-  treated as theft: all of the user's active refresh tokens are revoked and the response is
-  `401 RefreshTokenReuseDetected`.
-- **Concurrent refreshes** - a SQL Server `rowversion` on the refresh-token row means two simultaneous
-  refreshes with the same token cannot both succeed; the losing request gets `401 InvalidRefreshToken`.
+- **Reuse detection** - a rotated token presented again within a configurable grace window
+  (`RefreshToken:ReuseGraceSeconds`, default `30`; the example `.env` sets
+  `REFRESH_TOKEN_REUSE_GRACE_SECONDS=1`) is rejected with `401 InvalidRefreshToken` but not treated as
+  theft. Once the window has elapsed, presenting the rotated token is treated as theft: all of the
+  user's active refresh tokens are revoked and the response is `401 RefreshTokenReuseDetected`.
+- **Concurrent refreshes** - a SQL Server `rowversion` on the refresh-token row means concurrent
+  refreshes with the same token yield exactly one success; the losing requests get
+  `401 InvalidRefreshToken`.
 - **Logout** - `POST /api/auth/logout` revokes only the presented refresh token, ending that single
   session; the user's other sessions stay valid.
 - **Deleted users** - users are soft-deleted and excluded from lookups, so a deleted account can no
@@ -298,10 +299,10 @@ Enum values (`status`, `priority`, `role`) are accepted and returned as names
 | GET    | `/api/auth/me`      | User | Current user                             |
 
 Refresh tokens are single-use: each `refresh` rotates the token and issues a replacement. Concurrency
-is guarded with a SQL Server `rowversion` on the token row, so two simultaneous refreshes with the same
-token cannot both succeed - the losing request gets `401 InvalidRefreshToken`. Presenting a rotated
+is guarded with a SQL Server `rowversion` on the token row, so concurrent refreshes with the same token
+yield exactly one success - the losing requests get `401 InvalidRefreshToken`. Presenting a rotated
 token again within `RefreshToken:ReuseGraceSeconds` (default `30`; the Compose service reads
-`REFRESH_TOKEN_REUSE_GRACE_SECONDS`) is treated as a benign retry rather than an attack. Once that
+`REFRESH_TOKEN_REUSE_GRACE_SECONDS`) is rejected as invalid rather than treated as an attack. Once that
 window has elapsed, reusing a rotated token is treated as theft: all of the user's active refresh
 tokens are revoked and the response is `401 RefreshTokenReuseDetected`.
 
@@ -498,9 +499,10 @@ limit back to `10`) to observe the `429` response.
   token until it expires (at most `15` minutes). A deleted user can therefore still call the API and
   create tasks with a previously issued token, and cached task reads are not re-checked against the
   soft-delete filter.
-- `POST /api/auth/logout` revokes only the refresh token that is sent. Presenting a rotated token to
-  log out returns `204` without revoking its replacement, and access tokens stay valid until they
-  expire.
+- `POST /api/auth/logout` revokes only the refresh token that is sent, and is idempotent: an unknown
+  token returns `401 InvalidRefreshToken`, while a rotated or already-revoked token (including a
+  concurrent logout of the same token) returns `204` without revoking its replacement. Access tokens
+  stay valid until they expire.
 - Duplicate titles are scoped per user, per calendar day (UTC), and compared case-insensitively after
   trimming. A unique index on `(UserId, NormalizedTitle, CreatedDate)` enforces this in the database;
   the 2601/2627 SQL errors are mapped to `409`.
@@ -515,8 +517,14 @@ limit back to `10`) to observe the `429` response.
 
 ## Changes since Stage 1
 
-Stage 1 delivered the backend. The only runtime/behaviour change made while building the frontend is:
+Stage 1 delivered the backend. Two runtime/behaviour changes were made while building the frontend:
 
+- **Concurrent refresh with the same token now lets exactly one request succeed.** Why: a retry layer in
+  `UnitOfWork` re-ran a refresh that lost the concurrency race after the winner had already rotated the
+  token, so every concurrent refresh with the same token succeeded (5 of 5 in an integration test). The
+  retry was removed and rotation now relies on the `rowversion` concurrency token: exactly one request
+  succeeds and the others answer `401 InvalidRefreshToken`. Logout is idempotent - revoking an
+  already-revoked token is a no-op that still returns `204`.
 - **CORS: expose `Retry-After` and `Location`** in the `Default` policy
   (`src/TaskManagement.Api/Program.cs`, `.WithExposedHeaders("Retry-After", "Location")`). Why: without
   this the browser cannot read those response headers cross-origin, so the SPA could not show a
@@ -542,6 +550,8 @@ Test- and build-only changes (no runtime behaviour, endpoints, payloads or error
   around that contract.
 - The Docker stack is for local/demo use: the committed `JWT_KEY`, `SA_PASSWORD` and seeded admin
   credentials are development values, not secrets for a real deployment.
+- Tasks are always owner-scoped, including for the Admin role: the Admin manages user accounts (list,
+  create, delete) and does not read other users' tasks, following the spec.
 - Google Fonts is loaded from the CDN; without network access the SPA still works with a fallback font.
 
 ## Enhancements
@@ -552,6 +562,9 @@ Frontend additions beyond a bare CRUD UI (each with the reason):
   shared by all concurrent `401`s, then the original request is retried once. Why: an expired access
   token is renewed silently, and concurrent requests cannot fire duplicate refreshes (which the API's
   rotation/reuse detection would treat as an attack).
+- **Multi-tab refresh** - when a tab's refresh is rejected because another tab already rotated the
+  token, the tab retries the original request with the tokens the other tab stored instead of logging
+  out. Why: two tabs sharing one session must not sign each other out.
 - **`401` handling in one place** - the API client owns auth/session/refresh logic; it logs out only
   when the refresh token is actually rejected (`400`/`401`), and a network/`5xx`/`429` refresh failure
   keeps the session and surfaces the original error. Why: features stay free of auth plumbing, and a
