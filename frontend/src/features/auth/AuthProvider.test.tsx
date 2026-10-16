@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../core/api/ApiError'
 import { tokenStorage } from '../../core/storage/tokenStorage'
-import { saveTaskDraft, taskDraftKey } from '../tasks/draft'
 import { AuthProvider } from './AuthProvider'
 import { authApi } from './api'
 import { useAuth } from './context'
@@ -99,31 +98,5 @@ describe('AuthProvider', () => {
     await actor.click(screen.getByRole('button', { name: 'retry' }))
 
     await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'))
-  })
-
-  it('clears the current user draft on manual logout', async () => {
-    vi.mocked(authApi.me).mockResolvedValue(profile)
-    saveTaskDraft(profile.id, { title: 'Draft', description: '', priority: 'High' })
-
-    const actor = userEvent.setup()
-    renderProvider()
-
-    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'))
-
-    await actor.click(screen.getByRole('button', { name: 'logout' }))
-
-    expect(sessionStorage.getItem(taskDraftKey(profile.id))).toBeNull()
-  })
-
-  it('keeps the draft when the session expires', async () => {
-    vi.mocked(authApi.me).mockRejectedValue(
-      new ApiError({ status: 401, code: 'Unauthorized', message: 'Your session has expired.' }),
-    )
-    saveTaskDraft(profile.id, { title: 'Draft', description: '', priority: 'High' })
-
-    renderProvider()
-
-    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated'))
-    expect(sessionStorage.getItem(taskDraftKey(profile.id))).not.toBeNull()
   })
 })

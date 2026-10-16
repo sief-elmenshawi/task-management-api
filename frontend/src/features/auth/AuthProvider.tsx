@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../../core/api/ApiError'
 import { setUnauthorizedHandler } from '../../core/api/client'
+import { runLogoutCleanups } from '../../core/session/sessionCleanup'
 import { tokenStorage } from '../../core/storage/tokenStorage'
-import { clearTaskDraft } from '../tasks/draft'
 import { authApi } from './api'
 import { AuthContext } from './context'
 import type { AuthContextValue, AuthStatus, AuthUser, LoginValues, RegisterValues } from './types'
@@ -89,9 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void authApi.logout({ refreshToken }).catch(() => undefined)
 
-    if (user !== null) {
-      clearTaskDraft(user.id)
-    }
+    runLogoutCleanups(user?.id ?? null)
 
     clearSession()
     navigate('/login')
