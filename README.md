@@ -110,6 +110,10 @@ npm run dev               # http://localhost:5173
 
 The dev server is pinned to port `5173`, which matches the API's default `CORS_ORIGIN`.
 
+> Tip: the Vite dev server and the Compose `frontend` container both use port `5173`. If the stack is
+> up, stop the container first with `docker compose stop frontend`, otherwise `npm run dev` fails with
+> `EADDRINUSE`.
+
 ### Structure and architecture rules
 
 ```
@@ -430,6 +434,10 @@ dotnet test
 
 They use NSubstitute for collaborators and FluentAssertions for assertions, and require no external
 services.
+
+> Tip: if the API is running locally via `dotnet run`, the output DLLs are locked and `dotnet build`
+> and `dotnet test` fail with file-in-use errors (MSB3021/MSB3026/MSB3027). Stop that process first
+> (`dotnet build` against the Docker containers is unaffected).
 
 Integration tests live in `tests/TaskManagement.IntegrationTests` and boot the real API through
 `WebApplicationFactory` against throwaway SQL Server and Redis containers (Testcontainers). They are
