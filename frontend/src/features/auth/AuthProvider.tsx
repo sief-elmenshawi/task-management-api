@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../core/api/ApiError'
-import { getSessionGeneration, invalidateSession, setUnauthorizedHandler } from '../../core/api/client'
+import { setUnauthorizedHandler } from '../../core/api/client'
+import { endSession, getSessionGeneration, hasSession, startSession } from '../../core/session/session'
 import { runLogoutCleanups } from '../../core/session/sessionCleanup'
 import { tokenStorage } from '../../core/storage/tokenStorage'
 import { authApi } from './api'
@@ -14,13 +15,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [status, setStatus] = useState<AuthStatus>(() =>
-    tokenStorage.getAccessToken() === null ? 'unauthenticated' : 'loading',
+    hasSession() ? 'loading' : 'unauthenticated',
   )
   const [reloadToken, setReloadToken] = useState(0)
 
   const clearSession = useCallback(() => {
-    invalidateSession()
-    tokenStorage.clear()
+    endSession()
     setUser(null)
     setStatus('unauthenticated')
   }, [])
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [location.pathname])
 
   useEffect(() => {
-    if (tokenStorage.getAccessToken() === null) {
+    if (!hasSession()) {
       return
     }
 
@@ -83,14 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession, reloadToken])
 
   const retrySession = useCallback(() => {
-    setStatus(tokenStorage.getAccessToken() === null ? 'unauthenticated' : 'loading')
+    setStatus(hasSession() ? 'loading' : 'unauthenticated')
     setReloadToken((token) => token + 1)
   }, [])
 
   const login = useCallback(async (values: LoginValues) => {
     const tokens = await authApi.login(values)
-    invalidateSession()
-    tokenStorage.set(tokens)
+    startSession(tokens)
 
     const profile = await authApi.me()
     setUser({ id: profile.id, name: profile.name, email: profile.email, role: profile.role })

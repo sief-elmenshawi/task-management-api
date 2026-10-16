@@ -1,4 +1,5 @@
 import { apiUrl } from '../config/env'
+import { getSessionGeneration, onSessionInvalidated } from '../session/session'
 import { tokenStorage } from '../storage/tokenStorage'
 import { ApiError } from './ApiError'
 
@@ -26,19 +27,13 @@ type UnauthorizedHandler = () => void
 
 let unauthorizedHandler: UnauthorizedHandler | null = null
 let refreshInFlight: Promise<void> | null = null
-let sessionGeneration = 0
+
+onSessionInvalidated(() => {
+  refreshInFlight = null
+})
 
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
   unauthorizedHandler = handler
-}
-
-export function invalidateSession(): void {
-  sessionGeneration += 1
-  refreshInFlight = null
-}
-
-export function getSessionGeneration(): number {
-  return sessionGeneration
 }
 
 export function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -69,7 +64,7 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
   const skipUnauthorizedHandler = options.skipUnauthorizedHandler ?? false
 
   const usedAccessToken = auth ? tokenStorage.getAccessToken() : null
-  const requestGeneration = sessionGeneration
+  const requestGeneration = getSessionGeneration()
 
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (options.body !== undefined) {
@@ -120,7 +115,7 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
     if (canRetry) {
       const outcome = await tryRefreshSession(usedAccessToken)
 
-      if (sessionGeneration !== requestGeneration) {
+      if (getSessionGeneration() !== requestGeneration) {
         throw apiError
       }
 
@@ -150,7 +145,7 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
       }
     }
 
-    if (sessionGeneration !== requestGeneration) {
+    if (getSessionGeneration() !== requestGeneration) {
       throw apiError
     }
 
@@ -203,7 +198,7 @@ async function performRefresh(): Promise<void> {
     throw new ApiError({ status: 401, code: 'NoRefreshToken', message: 'Your session has expired.' })
   }
 
-  const generation = sessionGeneration
+  const generation = getSessionGeneration()
 
   const tokens = await send<RefreshResponse>(
     '/api/auth/refresh',
@@ -216,7 +211,7 @@ async function performRefresh(): Promise<void> {
     false,
   )
 
-  if (generation === sessionGeneration) {
+  if (generation === getSessionGeneration()) {
     tokenStorage.set(tokens)
   }
 }

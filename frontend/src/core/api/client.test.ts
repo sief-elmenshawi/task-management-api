@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from './ApiError'
-import { invalidateSession, request, setUnauthorizedHandler } from './client'
+import { request, setUnauthorizedHandler } from './client'
+import { invalidateSession } from '../session/session'
 import { tokenStorage } from '../storage/tokenStorage'
 
 const fetchMock = vi.fn<typeof fetch>()
