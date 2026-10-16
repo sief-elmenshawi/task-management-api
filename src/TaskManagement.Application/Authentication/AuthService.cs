@@ -136,7 +136,7 @@ public sealed class AuthService : IAuthService
             }
 
             _logger.LogWarning(
-                "Recently rotated or logged-out refresh token presented for user {UserId}; treating as a benign retry.",
+                "Recently rotated or logged-out refresh token presented for user {UserId}; treating it as a stale token; no sessions were revoked.",
                 storedToken.UserId);
 
             return Result.Failure<AuthResponse>(
