@@ -69,6 +69,8 @@
     gap: 12px;
     padding: 6px 0;
     border-bottom: none;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .users-table td::before {
