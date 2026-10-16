@@ -52,8 +52,7 @@ Persistence detail: `Priority` is stored as an `int` (while `Status` is stored a
 - .NET 10 SDK (only for running without Docker or running the tests)
 - Node.js 22.12+ (for the frontend dev server/tests and the Postman/Newman run via `npx newman`).
   The frontend toolchain needs a recent Node: Vite 8 requires `^20.19.0 || >=22.12.0` and Vitest 5
-  requires `^22.12.0 || ^24.0.0`, so Node 20 is not enough. Node 24 LTS is what the Docker image and
-  CI use.
+  requires `^22.12.0 || ^24.0.0`, so Node 20 is not enough. Node 24 LTS is what the Docker image uses.
 
 ## Quick start (Docker, whole stack)
 
