@@ -306,13 +306,8 @@ Enum values (`status`, `priority`, `role`) are accepted and returned as names
 | POST   | `/api/auth/logout`  | -    | Revoke a refresh token                   |
 | GET    | `/api/auth/me`      | User | Current user                             |
 
-Refresh tokens are single-use: each `refresh` rotates the token and issues a replacement. Concurrency
-is guarded with a SQL Server `rowversion` on the token row, so concurrent refreshes with the same token
-yield exactly one success - the losing requests get `401 InvalidRefreshToken`. Presenting a rotated
-token again within `RefreshToken:ReuseGraceSeconds` (default `30`; the Compose service reads
-`REFRESH_TOKEN_REUSE_GRACE_SECONDS`) is rejected as invalid rather than treated as an attack. Once that
-window has elapsed, reusing a rotated token is treated as theft: all of the user's active refresh
-tokens are revoked and the response is `401 RefreshTokenReuseDetected`.
+Refresh-token rotation, concurrency (exactly one winner per token, guarded by a SQL Server
+`rowversion`) and reuse detection are explained under [Authentication flow](#authentication-flow).
 
 ### Users (Admin only)
 
@@ -440,9 +435,9 @@ dotnet test
 They use NSubstitute for collaborators and FluentAssertions for assertions, and require no external
 services.
 
-> Tip: if the API is running locally via `dotnet run`, the output DLLs are locked and `dotnet build`
-> and `dotnet test` fail with file-in-use errors (MSB3021/MSB3026/MSB3027). Stop that process first
-> (`dotnet build` against the Docker containers is unaffected).
+> Tip: a locally running API (`dotnet run`) locks its output DLLs, so `dotnet build` and `dotnet test`
+> fail with file-in-use errors (MSB3021/MSB3026/MSB3027). Stop the `dotnet run` process first; the
+> Docker containers do not lock these local files.
 
 Integration tests live in `tests/TaskManagement.IntegrationTests` and boot the real API through
 `WebApplicationFactory` against throwaway SQL Server and Redis containers (Testcontainers). They are
@@ -456,6 +451,19 @@ TASKMANAGER_INTEGRATION=1 dotnet test tests/TaskManagement.IntegrationTests
 ```powershell
 $env:TASKMANAGER_INTEGRATION = "1"; dotnet test tests/TaskManagement.IntegrationTests
 ```
+
+The frontend has its own suite (Vitest + Testing Library) plus ESLint:
+
+```bash
+cd frontend
+npm test      # vitest run
+npm run lint  # eslint .
+```
+
+What is automated: the backend unit and integration tests above and the frontend Vitest/ESLint run.
+What is not: there is no browser end-to-end suite in the repository, so the frontend's
+token-refresh, logout and draft flows are covered with a mocked `fetch`, not driven through a real
+browser.
 
 ## Postman / Newman
 
