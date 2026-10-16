@@ -563,9 +563,8 @@ Stage 1 delivered the backend. Two runtime/behaviour changes were made while bui
 Test- and build-only changes (no runtime behaviour, endpoints, payloads or error shapes changed):
 
 - **Bumped the transitive `System.Security.Cryptography.Pkcs` to `10.0.13`** in
-  `TaskManagement.Infrastructure.csproj` to clear the NuGet audit warnings `NU1902`/`NU1903` (the
-  version pulled in through `Microsoft.Data.SqlClient` was affected by CVE-2026-84008 and
-  CVE-2026-70162). The build is now warning-free.
+  `TaskManagement.Infrastructure.csproj` to clear the NuGet audit warnings `NU1902`/`NU1903` on the
+  version pulled in through `Microsoft.Data.SqlClient`. The build is now warning-free.
 - **Made the worker startup-recovery unit tests deterministic** (`TaskProcessingWorkerTests`) by
   awaiting a `TaskCompletionSource` signal instead of fixed delays.
 
