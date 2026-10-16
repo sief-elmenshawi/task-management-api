@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { ErrorState } from '../../../shared/components/ErrorState'
 import { Spinner } from '../../../shared/components/Spinner'
 import { useAuth } from '../context'
+import { getLoginRedirect } from '../loginRedirect'
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { status, retrySession } = useAuth()
@@ -28,6 +29,12 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (status === 'unauthenticated') {
+    const redirect = getLoginRedirect()
+
+    if (redirect !== null) {
+      return <Navigate to="/login" state={redirect} replace />
+    }
+
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 

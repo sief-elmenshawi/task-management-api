@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../core/api/ApiError'
 import { setUnauthorizedHandler } from '../../core/api/client'
 import { runLogoutCleanups } from '../../core/session/sessionCleanup'
 import { tokenStorage } from '../../core/storage/tokenStorage'
 import { authApi } from './api'
 import { AuthContext } from './context'
+import { clearLoginRedirect, setLoginRedirect } from './loginRedirect'
 import type { AuthContextValue, AuthStatus, AuthUser, LoginValues, RegisterValues } from './types'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [status, setStatus] = useState<AuthStatus>(() =>
     tokenStorage.getAccessToken() === null ? 'unauthenticated' : 'loading',
@@ -24,12 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      const redirect = { sessionExpired: true }
+      setLoginRedirect(redirect)
+      navigate('/login', { state: redirect, replace: true })
       clearSession()
-      navigate('/login', { state: { sessionExpired: true }, replace: true })
     })
 
     return () => setUnauthorizedHandler(null)
   }, [clearSession, navigate])
+
+  useEffect(() => {
+    if (location.pathname === '/login') {
+      clearLoginRedirect()
+    }
+  }, [location.pathname])
 
   useEffect(() => {
     if (tokenStorage.getAccessToken() === null) {
@@ -91,8 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     runLogoutCleanups(user?.id ?? null)
 
+    setLoginRedirect({})
+    navigate('/login', { replace: true })
     clearSession()
-    navigate('/login')
   }, [clearSession, navigate, user])
 
   const value = useMemo<AuthContextValue>(
