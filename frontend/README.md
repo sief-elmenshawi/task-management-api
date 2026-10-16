@@ -58,3 +58,7 @@ are documented in [`docs/api-contract.md`](docs/api-contract.md).
 - **Resilient startup:** if the boot-time `GET /api/auth/me` cannot reach the
   server the app keeps the stored tokens and shows a retry screen; only a `401`
   clears the session. Why: a brief outage at startup should not log the user out.
+
+## AI tools used
+
+See [AI tools used](../README.md#ai-tools-used) in the root README.
