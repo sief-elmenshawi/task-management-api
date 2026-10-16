@@ -422,4 +422,46 @@ describe('request', () => {
 
     expect(refreshCalls).toBe(0)
   })
+
+  it('retries with a newer token when the refresh is rejected by another tab', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    tokenStorage.set({
+      accessToken: 'old',
+      refreshToken: 'refresh-1',
+      expiresAt: '2020-01-01T00:00:00Z',
+    })
+
+    fetchMock.mockImplementation((input, init) => {
+      const url = String(input)
+      const authHeader = new Headers(init?.headers).get('Authorization')
+
+      if (url.endsWith('/api/auth/refresh')) {
+        tokenStorage.set({
+          accessToken: 'new',
+          refreshToken: 'refresh-2',
+          expiresAt: '2030-01-01T00:00:00Z',
+        })
+        return Promise.resolve(
+          problemResponse(400, {
+            status: 400,
+            code: 'InvalidRefreshToken',
+            detail: 'Invalid refresh token.',
+          }),
+        )
+      }
+
+      if (authHeader === 'Bearer new') {
+        return Promise.resolve(jsonResponse(200, { ok: true }))
+      }
+
+      return Promise.resolve(
+        problemResponse(401, { status: 401, code: 'Unauthorized', detail: 'Authentication is required.' }),
+      )
+    })
+
+    await expect(request('/api/tasks')).resolves.toEqual({ ok: true })
+
+    expect(handler).not.toHaveBeenCalled()
+  })
 })

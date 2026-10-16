@@ -109,12 +109,22 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
     if (canRetry) {
       const outcome = await tryRefreshSession(usedAccessToken)
 
-      if (outcome === 'refreshed') {
+      if (outcome.kind === 'refreshed') {
         return await send<T>(path, options, false)
       }
 
-      if (outcome === 'temporary') {
+      if (outcome.kind === 'temporary') {
         throw apiError
+      }
+
+      const currentAccessToken = tokenStorage.getAccessToken()
+      const currentRefreshToken = tokenStorage.getRefreshToken()
+      const hasNewerTokens =
+        (currentAccessToken !== null && currentAccessToken !== usedAccessToken) ||
+        (currentRefreshToken !== null && currentRefreshToken !== outcome.usedRefreshToken)
+
+      if (hasNewerTokens) {
+        return await send<T>(path, options, false)
       }
     }
 
@@ -126,18 +136,23 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
   throw apiError
 }
 
-type RefreshOutcome = 'refreshed' | 'rejected' | 'temporary'
+type RefreshOutcome =
+  | { kind: 'refreshed' }
+  | { kind: 'temporary' }
+  | { kind: 'rejected'; usedRefreshToken: string | null }
 
 async function tryRefreshSession(failedAccessToken: string | null): Promise<RefreshOutcome> {
+  const usedRefreshTokenForRefresh = tokenStorage.getRefreshToken()
+
   try {
     await refreshSession(failedAccessToken)
-    return 'refreshed'
+    return { kind: 'refreshed' }
   } catch (error) {
     if (error instanceof ApiError && (error.status === 400 || error.status === 401)) {
-      return 'rejected'
+      return { kind: 'rejected', usedRefreshToken: usedRefreshTokenForRefresh }
     }
 
-    return 'temporary'
+    return { kind: 'temporary' }
   }
 }
 
