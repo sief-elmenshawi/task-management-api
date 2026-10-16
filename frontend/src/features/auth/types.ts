@@ -1,3 +1,5 @@
+import type { AccountValues } from '../../shared/account/types'
+
 export type UserRole = 'User' | 'Admin'
 
 export type AuthUser = {
@@ -27,12 +29,7 @@ export type LoginValues = {
   password: string
 }
 
-export type RegisterValues = {
-  name: string
-  email: string
-  password: string
-  confirmPassword: string
-}
+export type RegisterValues = AccountValues
 
 export type { FieldErrors } from '../../shared/forms/formErrors'
 

@@ -5,12 +5,10 @@ import { Button } from '../../../shared/components/Button'
 import { FormField } from '../../../shared/components/FormField'
 import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { useAuth } from '../context'
-import { describeApiError } from '../formErrors'
+import { describeAccountError } from '../../../shared/account/formErrors'
 import { validateRegister } from '../validation'
 import type { FieldErrors, RegisterValues } from '../types'
 import './auth.css'
-
-const fields = ['Name', 'Email', 'Password', 'ConfirmPassword']
 
 export function RegisterPage() {
   useDocumentTitle('Create account')
@@ -52,7 +50,7 @@ export function RegisterPage() {
       await register(values)
       navigate('/login', { state: { registered: true } })
     } catch (error) {
-      const described = describeApiError(error, fields)
+      const described = describeAccountError(error)
       setFieldErrors(described.fieldErrors)
       setFormError(described.formError)
     } finally {

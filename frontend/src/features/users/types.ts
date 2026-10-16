@@ -8,9 +8,4 @@ export type UserSummary = {
   createdAt: string
 }
 
-export type CreateUserValues = {
-  name: string
-  email: string
-  password: string
-  confirmPassword: string
-}
+export type { AccountValues as CreateUserValues } from '../../shared/account/types'
