@@ -1,7 +1,8 @@
+import type { FieldErrors } from '../../shared/forms/formErrors'
 import type { CreateTaskValues } from './types'
 import { descriptionMaxLength, titleMaxLength } from './types'
 
-export type FieldErrors = Record<string, string>
+export type { FieldErrors }
 
 export function validateCreateTask(values: CreateTaskValues): FieldErrors {
   const errors: FieldErrors = {}
