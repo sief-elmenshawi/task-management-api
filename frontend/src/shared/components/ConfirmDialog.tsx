@@ -8,6 +8,7 @@ export type ConfirmDialogProps = {
   message: string
   confirmLabel?: string
   cancelLabel?: string
+  busy?: boolean
   onConfirm: () => void
   onCancel: () => void
 }
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  busy = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -35,7 +37,7 @@ export function ConfirmDialog({
     dialogRef.current?.focus()
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !busy) {
         onCancel()
       }
     }
@@ -46,7 +48,7 @@ export function ConfirmDialog({
       document.removeEventListener('keydown', onKeyDown)
       previousFocus.current?.focus()
     }
-  }, [open, onCancel])
+  }, [open, busy, onCancel])
 
   if (!open) {
     return null
@@ -70,10 +72,10 @@ export function ConfirmDialog({
           {message}
         </p>
         <div className="dialog__actions">
-          <Button variant="secondary" onClick={onCancel}>
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>
             {cancelLabel}
           </Button>
-          <Button variant="danger" onClick={onConfirm}>
+          <Button variant="danger" onClick={onConfirm} loading={busy}>
             {confirmLabel}
           </Button>
         </div>

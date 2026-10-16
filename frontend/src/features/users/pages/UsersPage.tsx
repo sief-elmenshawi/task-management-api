@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../../core/api/ApiError'
 import { Alert } from '../../../shared/components/Alert'
@@ -33,6 +33,7 @@ export function UsersPage() {
   const [pendingDelete, setPendingDelete] = useState<UserSummary | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const deleteRequestRef = useRef(0)
 
   useEffect(() => {
     if (location.state !== null) {
@@ -41,26 +42,36 @@ export function UsersPage() {
   }, [location, navigate])
 
   async function confirmDelete() {
-    if (pendingDelete === null) {
+    if (pendingDelete === null || deleting) {
       return
     }
 
     const target = pendingDelete
+    const requestId = deleteRequestRef.current + 1
+    deleteRequestRef.current = requestId
     setActionError(null)
     setDeleting(true)
 
     try {
       await usersApi.remove(target.id)
+      if (deleteRequestRef.current !== requestId) {
+        return
+      }
       refetch()
     } catch (requestError) {
+      if (deleteRequestRef.current !== requestId) {
+        return
+      }
       setActionError(
         requestError instanceof ApiError
           ? requestError.message
           : 'Something went wrong. Please try again.',
       )
     } finally {
-      setDeleting(false)
-      setPendingDelete(null)
+      if (deleteRequestRef.current === requestId) {
+        setDeleting(false)
+        setPendingDelete(null)
+      }
     }
   }
 
@@ -138,6 +149,7 @@ export function UsersPage() {
             : `Delete ${pendingDelete.name} (${pendingDelete.email})? This cannot be undone.`
         }
         confirmLabel={deleting ? 'Deleting...' : 'Delete'}
+        busy={deleting}
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => void confirmDelete()}
       />

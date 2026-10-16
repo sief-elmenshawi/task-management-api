@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -88,5 +88,65 @@ describe('UsersPage', () => {
     const deleteButtons = await screen.findAllByRole('button', { name: 'Delete' })
     expect(deleteButtons[0]).toBeEnabled()
     expect(deleteButtons[1]).toBeDisabled()
+  })
+
+  it('sends a single delete request when the confirmation is clicked twice', async () => {
+    let releaseDelete!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseDelete = resolve
+    })
+    vi.mocked(usersApi.remove).mockImplementation(async () => {
+      await gate
+    })
+
+    const user = userEvent.setup()
+    renderPage()
+
+    const deleteButtons = await screen.findAllByRole('button', { name: 'Delete' })
+    await user.click(deleteButtons[0])
+
+    const dialog = screen.getByRole('dialog')
+    const confirm = within(dialog).getByRole('button', { name: 'Delete' })
+
+    await user.click(confirm)
+    await user.click(confirm)
+
+    expect(usersApi.remove).toHaveBeenCalledTimes(1)
+
+    releaseDelete()
+  })
+
+  it('blocks the dialog actions while a delete is in flight', async () => {
+    let releaseDelete!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseDelete = resolve
+    })
+    vi.mocked(usersApi.remove).mockImplementation(async () => {
+      await gate
+    })
+
+    const user = userEvent.setup()
+    renderPage()
+
+    const deleteButtons = await screen.findAllByRole('button', { name: 'Delete' })
+    await user.click(deleteButtons[0])
+
+    const dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    const confirm = within(dialog).getByRole('button', { name: /Deleting/ })
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
+
+    expect(confirm).toBeDisabled()
+    expect(cancel).toBeDisabled()
+
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    releaseDelete()
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
   })
 })
