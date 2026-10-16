@@ -8,7 +8,6 @@ import { Spinner } from '../../../shared/components/Spinner'
 import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { usePolling } from '../../../shared/hooks/usePolling'
 import { formatDate } from '../../../shared/utils/formatDate'
-import { tasksApi } from '../api'
 import { PriorityBadge } from '../components/PriorityBadge'
 import { StatusBadge } from '../components/StatusBadge'
 import { useTask } from '../hooks/useTask'
@@ -24,7 +23,7 @@ const statusLabels: Record<TaskStatus, string> = {
 
 export function TaskDetailsPage() {
   const { id = '' } = useParams()
-  const { task, loading, error, notFound, refetch } = useTask(id)
+  const { task, loading, error, notFound, refetch, changeStatus: changeTaskStatus } = useTask(id)
 
   useDocumentTitle(task?.title ?? 'Task details')
 
@@ -67,8 +66,7 @@ export function TaskDetailsPage() {
     setPendingStatus(status)
 
     try {
-      await tasksApi.updateStatus(id, status)
-      await refetch(true)
+      await changeTaskStatus(status)
     } catch (requestError) {
       setStatusError(
         requestError instanceof ApiError

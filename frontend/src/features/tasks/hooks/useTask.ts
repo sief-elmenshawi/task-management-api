@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../../core/api/ApiError'
 import { tasksApi } from '../api'
-import type { Task } from '../types'
+import type { Task, TaskStatus } from '../types'
 
 export type UseTaskResult = {
   task: Task | null
@@ -9,6 +9,7 @@ export type UseTaskResult = {
   error: string | null
   notFound: boolean
   refetch: (silent?: boolean) => Promise<void>
+  changeStatus: (status: TaskStatus) => Promise<void>
 }
 
 function messageOf(error: unknown): string {
@@ -23,12 +24,16 @@ export function useTask(id: string): UseTaskResult {
   const [reloadToken, setReloadToken] = useState(0)
   const silentRef = useRef(false)
   const resolversRef = useRef<Array<() => void>>([])
+  const mutationEpochRef = useRef(0)
+  const idRef = useRef(id)
 
   useEffect(() => {
+    idRef.current = id
     const controller = new AbortController()
     let cancelled = false
     const silent = silentRef.current
     silentRef.current = false
+    const mutationEpochAtStart = mutationEpochRef.current
 
     function settle() {
       const resolvers = resolversRef.current
@@ -47,9 +52,12 @@ export function useTask(id: string): UseTaskResult {
           return
         }
 
-        setTask(data)
-        setError(null)
-        setNotFound(false)
+        if (mutationEpochRef.current === mutationEpochAtStart) {
+          setTask(data)
+          setError(null)
+          setNotFound(false)
+        }
+
         setLoading(false)
         settle()
       })
@@ -86,5 +94,23 @@ export function useTask(id: string): UseTaskResult {
     })
   }, [])
 
-  return { task, loading, error, notFound, refetch }
+  const changeStatus = useCallback(
+    async (status: TaskStatus): Promise<void> => {
+      const updated = await tasksApi.updateStatus(id, status)
+
+      if (idRef.current !== id) {
+        return
+      }
+
+      mutationEpochRef.current += 1
+      setTask(updated)
+      setError(null)
+      setNotFound(false)
+
+      void refetch(true)
+    },
+    [id, refetch],
+  )
+
+  return { task, loading, error, notFound, refetch, changeStatus }
 }
