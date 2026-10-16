@@ -468,12 +468,28 @@ npx newman run postman/TaskManagement.postman_collection.json \
   -e postman/TaskManagement.postman_environment.json
 ```
 
+```powershell
+$env:RATE_LIMIT_AUTH_PERMIT = "1000"
+$env:RATE_LIMIT_AUTH_WINDOW = "60"
+$env:REFRESH_TOKEN_REUSE_GRACE_SECONDS = "1"
+docker compose up -d --build
+npx newman run postman/TaskManagement.postman_collection.json `
+  -e postman/TaskManagement.postman_environment.json
+Remove-Item Env:RATE_LIMIT_AUTH_PERMIT, Env:RATE_LIMIT_AUTH_WINDOW, Env:REFRESH_TOKEN_REUSE_GRACE_SECONDS
+```
+
+`Remove-Item Env:...` clears the overrides for later commands in the same PowerShell session (in bash,
+the variables are only set for the one command that follows them).
+
 Both overrides are already the committed defaults in `.env.example`, which is the easiest place to
 set them. `RATE_LIMIT_AUTH_PERMIT` is the `RateLimiting__Auth__PermitLimit` environment variable and
 `REFRESH_TOKEN_REUSE_GRACE_SECONDS` is `RefreshToken__ReuseGraceSeconds`; `docker-compose.yml`
 forwards both to the API (see [Configuration](#configuration)). The lowered grace window lets the
 `AUTH-11` refresh-reuse scenario wait past it. Run the stack without the overrides (or set the permit
 limit back to `10`) to observe the `429` response.
+
+`postman/TaskManager-Manual.postman_collection.json` is the guided manual collection: it walks the same
+endpoints step by step for exploratory testing (open it in Postman and run the requests in order).
 
 ## Bonus items implemented
 
