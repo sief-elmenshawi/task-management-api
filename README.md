@@ -3,8 +3,14 @@
 A full-stack task management solution: an ASP.NET Core API following Onion Architecture (this
 readme), plus a React + TypeScript single-page app in [`frontend/`](frontend/README.md).
 
+## Demo videos
+
+- [Backend walkthrough](https://drive.google.com/file/d/1bWf0FOpXUYX7Mpx2aouDTmRGQqMFH-2x/view?usp=sharing)
+- [Full-stack walkthrough](https://drive.google.com/file/d/15iuvhvgHJK5bLcwMR5ZfKGzFGLlhlRKf/view?usp=sharing)
+
 ## Quick links
 
+- [Demo videos](#demo-videos)
 - [Quick start (Docker)](#quick-start-docker-whole-stack)
 - [Seed credentials](#seed-credentials)
 - [Swagger](#how-to-try-it-in-swagger)
