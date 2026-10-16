@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ApiError } from '../../../core/api/ApiError'
 import { Alert } from '../../../shared/components/Alert'
 import { Button } from '../../../shared/components/Button'
 import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
@@ -10,7 +9,6 @@ import { Spinner } from '../../../shared/components/Spinner'
 import { useDocumentTitle } from '../../../shared/hooks/useDocumentTitle'
 import { formatDate } from '../../../shared/utils/formatDate'
 import { useAuth } from '../../auth/context'
-import { usersApi } from '../api'
 import { RoleBadge } from '../components/RoleBadge'
 import { useUsers } from '../hooks/useUsers'
 import type { UserSummary } from '../types'
@@ -22,7 +20,7 @@ export function UsersPage() {
   useDocumentTitle('Users')
 
   const { user: currentUser } = useAuth()
-  const { users, loading, error, refetch } = useUsers()
+  const { users, loading, error, refetch, removing, removeError, remove } = useUsers()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -31,9 +29,6 @@ export function UsersPage() {
     return { created: state?.created === true }
   })
   const [pendingDelete, setPendingDelete] = useState<UserSummary | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const deleteRequestRef = useRef(0)
 
   useEffect(() => {
     if (location.state !== null) {
@@ -42,36 +37,14 @@ export function UsersPage() {
   }, [location, navigate])
 
   async function confirmDelete() {
-    if (pendingDelete === null || deleting) {
+    if (pendingDelete === null) {
       return
     }
 
-    const target = pendingDelete
-    const requestId = deleteRequestRef.current + 1
-    deleteRequestRef.current = requestId
-    setActionError(null)
-    setDeleting(true)
+    const completed = await remove(pendingDelete.id)
 
-    try {
-      await usersApi.remove(target.id)
-      if (deleteRequestRef.current !== requestId) {
-        return
-      }
-      refetch()
-    } catch (requestError) {
-      if (deleteRequestRef.current !== requestId) {
-        return
-      }
-      setActionError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : 'Something went wrong. Please try again.',
-      )
-    } finally {
-      if (deleteRequestRef.current === requestId) {
-        setDeleting(false)
-        setPendingDelete(null)
-      }
+    if (completed) {
+      setPendingDelete(null)
     }
   }
 
@@ -85,7 +58,7 @@ export function UsersPage() {
       </div>
 
       {notice.created && <Alert variant="success">The user was created.</Alert>}
-      {actionError !== null && <Alert variant="error">{actionError}</Alert>}
+      {removeError !== null && <Alert variant="error">{removeError}</Alert>}
 
       {loading && (
         <div className="page-loading">
@@ -148,8 +121,8 @@ export function UsersPage() {
             ? ''
             : `Delete ${pendingDelete.name} (${pendingDelete.email})? This cannot be undone.`
         }
-        confirmLabel={deleting ? 'Deleting...' : 'Delete'}
-        busy={deleting}
+        confirmLabel={removing ? 'Deleting...' : 'Delete'}
+        busy={removing}
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => void confirmDelete()}
       />
