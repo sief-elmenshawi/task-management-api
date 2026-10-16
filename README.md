@@ -141,7 +141,7 @@ imports from `features`; components never call `fetch` directly; the API base UR
 
 Each app ships a committed `.env.example`; copy it to `.env` (git-ignored) and adjust.
 
-Root `.env.example` (used by Compose and `dotnet run`) - key entries:
+Root `.env.example` (used by Compose; the API reads `appsettings.json`, `appsettings.Local.json` and environment variables - not `.env`) - key entries:
 
 | Variable                           | Default                 | Purpose                                                                 |
 | ---------------------------------- | ----------------------- | ----------------------------------------------------------------------- |
@@ -481,10 +481,11 @@ Remove-Item Env:RATE_LIMIT_AUTH_PERMIT, Env:RATE_LIMIT_AUTH_WINDOW, Env:REFRESH_
 `Remove-Item Env:...` clears the overrides for later commands in the same PowerShell session (in bash,
 the variables are only set for the one command that follows them).
 
-Both overrides are already the committed defaults in `.env.example`, which is the easiest place to
-set them. `RATE_LIMIT_AUTH_PERMIT` is the `RateLimiting__Auth__PermitLimit` environment variable and
+These overrides are already the committed defaults in `.env.example`, which is the easiest place to
+set them. `RATE_LIMIT_AUTH_PERMIT` is the `RateLimiting__Auth__PermitLimit` environment variable,
+`RATE_LIMIT_AUTH_WINDOW` is `RateLimiting__Auth__WindowSeconds` and
 `REFRESH_TOKEN_REUSE_GRACE_SECONDS` is `RefreshToken__ReuseGraceSeconds`; `docker-compose.yml`
-forwards both to the API (see [Configuration](#configuration)). The lowered grace window lets the
+forwards all three to the API (see [Configuration](#configuration)). The lowered grace window lets the
 `AUTH-11` refresh-reuse scenario wait past it. Run the stack without the overrides (or set the permit
 limit back to `10`) to observe the `429` response.
 
