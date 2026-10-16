@@ -552,15 +552,21 @@ Frontend additions beyond a bare CRUD UI (each with the reason):
   shared by all concurrent `401`s, then the original request is retried once. Why: an expired access
   token is renewed silently, and concurrent requests cannot fire duplicate refreshes (which the API's
   rotation/reuse detection would treat as an attack).
-- **`401` handling in one place** - the API client owns auth/session/refresh logic; when a refresh
-  fails it calls a single unauthorized handler that logs out and shows the session-expired message.
-  Why: features stay free of auth plumbing and the behavior is consistent everywhere.
-- **Draft protection** - the create-task form persists to `sessionStorage` while typing and restores
-  on mount (cleared on success). Why: a session that expires while the form is open does not lose the
-  user's typing.
+- **`401` handling in one place** - the API client owns auth/session/refresh logic; it logs out only
+  when the refresh token is actually rejected (`400`/`401`), and a network/`5xx`/`429` refresh failure
+  keeps the session and surfaces the original error. Why: features stay free of auth plumbing, and a
+  transient server problem never logs the user out.
+- **Resilient session startup** - if the boot-time `GET /api/auth/me` cannot reach the server the app
+  keeps the stored tokens and renders a retry screen; only a `401` clears the session. Why: a brief
+  outage at startup should not force a re-login.
+- **Per-user draft protection** - the create-task form persists to `sessionStorage` under a key scoped
+  to the signed-in user and restores on mount (cleared on success). The draft is cleared on an explicit
+  logout but kept when the session expires. Why: a silent logout should not lose typing, and two users
+  on a shared browser must not see each other's drafts.
 - **No wasted requests** - the list polls only while a task is `Pending` and the tab is visible,
-  effects abort their fetch on unmount, and search is debounced. Why: fewer needless calls and no
-  duplicate work from React StrictMode's double-invoked effects.
+  effects abort their fetch on unmount, and search is debounced. A failed background poll keeps the
+  last rendered data instead of flashing an error. Why: fewer needless calls, and a dropped poll should
+  not replace good data with an error screen.
 - **Usability** - submit buttons disable and show a spinner while a request runs, inputs keep their
   values after a server error, and `429` responses show the readable `Retry-After` wait time. Why: the
   user always knows a request is running and, when throttled, exactly how long to wait.

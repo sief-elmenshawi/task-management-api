@@ -31,15 +31,19 @@ are documented in [`docs/api-contract.md`](docs/api-contract.md).
 
 ## Enhancements
 
-- **Draft protection:** the create-task form writes what you type to
-  `sessionStorage` and restores it on mount, so a session that expires while the
-  form is open does not lose the draft; the draft is cleared once the task is
-  created. Why: a silent logout should never cost the user their typing.
+- **Per-user draft protection:** the create-task form writes what you type to
+  `sessionStorage` under a key scoped to the signed-in user and restores it on
+  mount; it is cleared once the task is created or on an explicit logout, but
+  kept when the session expires. Why: a silent logout should never cost the user
+  their typing, and two users on a shared browser must not see each other's
+  drafts.
 - **No wasted requests:** the task list polls only while a task is `Pending`
   and the tab is visible, the title search is debounced, and every effect
-  aborts its fetch and clears its timer on unmount. Why: React StrictMode
-  double-invokes effects, so cleanup keeps the double mount from leaving
-  duplicate polling timers or stale responses behind.
+  aborts its fetch and clears its timer on unmount. A failed background poll
+  keeps the last rendered data instead of flashing an error. Why: React
+  StrictMode double-invokes effects, so cleanup keeps the double mount from
+  leaving duplicate polling timers or stale responses behind, and a dropped poll
+  should not replace good data with an error screen.
 - **Clear feedback:** submit buttons disable and show a spinner while a request
   is in flight, the typed values stay after a server error, and `429` responses
   show the readable `Retry-After` wait time (the API now exposes that header
@@ -47,6 +51,10 @@ are documented in [`docs/api-contract.md`](docs/api-contract.md).
   throttled, exactly how long to wait.
 - **Silent token refresh:** on a `401` the API client calls
   `POST /api/auth/refresh` once with single-flight semantics and retries the
-  original request. Why: an expired access token is renewed without
-  interrupting the user, while concurrent requests share one refresh call and a
-  failed refresh logs out with the session-expired message.
+  original request. It only logs out when the refresh token is rejected
+  (`400`/`401`); a network or `5xx`/`429` failure keeps the session. Why: an
+  expired access token is renewed without interrupting the user, while a
+  transient server problem never forces a re-login.
+- **Resilient startup:** if the boot-time `GET /api/auth/me` cannot reach the
+  server the app keeps the stored tokens and shows a retry screen; only a `401`
+  clears the session. Why: a brief outage at startup should not log the user out.
