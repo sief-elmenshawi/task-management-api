@@ -598,9 +598,10 @@ Frontend additions beyond a bare CRUD UI (each with the reason):
   when the refresh token is actually rejected (`400`/`401`), and a network/`5xx`/`429` refresh failure
   keeps the session and surfaces the original error. Why: features stay free of auth plumbing, and a
   transient server problem never logs the user out.
-- **Resilient session startup** - if the boot-time `GET /api/auth/me` cannot reach the server the app
-  keeps the stored tokens and renders a retry screen; only a `401` clears the session. Why: a brief
-  outage at startup should not force a re-login.
+- **Resilient session startup** - if the boot-time `GET /api/auth/me` cannot reach the server, or its
+  silent refresh fails with a recoverable error (network/`5xx`/`429`), the app keeps the stored tokens
+  and renders a retry screen; only a definitive `401` clears the session. Why: a brief outage at
+  startup should not force a re-login.
 - **Per-user draft protection** - the create-task form persists to `sessionStorage` under a key scoped
   to the signed-in user and restores on mount (cleared on success). The draft is cleared on an explicit
   logout but kept when the session expires. Why: a silent logout should not lose typing, and two users
@@ -612,6 +613,20 @@ Frontend additions beyond a bare CRUD UI (each with the reason):
 - **Usability** - submit buttons disable and show a spinner while a request runs, inputs keep their
   values after a server error, and `429` responses show the readable `Retry-After` wait time. Why: the
   user always knows a request is running and, when throttled, exactly how long to wait.
+- **Refresh cannot undo a logout or overwrite a newer login** - a session generation counter drops a
+  refresh that started before a logout or a newer login. Why: a pending refresh completing late must
+  not restore the token pair after a deliberate logout or clobber a fresh session.
+- **A temporary startup refresh failure keeps the session** - a recoverable refresh failure
+  (network/`5xx`/`429`) during the boot-time profile check keeps the stored tokens and shows the retry
+  screen instead of logging out. Why: a still-valid session must survive a brief outage.
+- **Status changes apply immediately** - a successful `PATCH /status` is applied to local state from
+  the response before the follow-up refresh, and a stale in-flight read cannot roll it back. Why: the
+  new status must be visible even if the refresh that follows it fails.
+- **One delete per confirmation** - the dialog disables its actions while a delete is in flight and
+  the handler ignores repeated entry. Why: a double click used to send a second `DELETE` (usually
+  `404`) and show a failure after a successful deletion.
+- **No mobile overflow** - long values such as email addresses wrap in the users table below `640px`.
+  Why: `/admin/users` used to scroll horizontally on a 375px viewport.
 
 ## Unfinished or limitations
 

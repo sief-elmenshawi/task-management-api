@@ -56,8 +56,24 @@ are documented in [`docs/api-contract.md`](docs/api-contract.md).
   expired access token is renewed without interrupting the user, while a
   transient server problem never forces a re-login.
 - **Resilient startup:** if the boot-time `GET /api/auth/me` cannot reach the
-  server the app keeps the stored tokens and shows a retry screen; only a `401`
+  server, or its silent refresh fails with a recoverable error (network/`5xx`/`429`),
+  the app keeps the stored tokens and shows a retry screen; only a definitive `401`
   clears the session. Why: a brief outage at startup should not log the user out.
+- **Refresh cannot undo a logout or overwrite a newer login:** a session generation
+  counter in `core/session` drops a refresh that started before a logout or a newer
+  login, so a pending refresh can no longer restore the token pair after logout or
+  clobber a fresh session. Why: a deliberate logout or a new login must always win
+  over an older in-flight refresh.
+- **Status changes apply immediately:** a successful `PATCH /status` is applied to
+  local state from the response before the follow-up refresh, and a stale in-flight
+  read cannot roll it back. Why: the new status must be visible even if the refresh
+  that follows it fails.
+- **One delete per confirmation:** the dialog disables both actions while a delete is
+  in flight and the handler ignores repeated entry, so a double click sends a single
+  `DELETE`. Why: a duplicate request returned `404` and showed a failure after a
+  successful deletion.
+- **No mobile overflow:** long values such as email addresses wrap in the users table
+  below `640px`. Why: the table used to scroll horizontally on a 375px viewport.
 
 ## AI tools used
 
