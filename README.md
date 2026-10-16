@@ -119,14 +119,19 @@ The dev server is pinned to port `5173`, which matches the API's default `CORS_O
 ```
 frontend/src/
   app/      app shell, router, layouts, header
-  core/     api client (fetch + single-flight token refresh), env config, token storage
-  shared/   reusable components, hooks, utils and styles (no feature code)
+  core/     api (fetch client + single-flight token refresh), config (env), storage (token pair), session
+  shared/   account, components, forms, hooks, pages, styles, utils (reusable, no feature code)
   features/ auth, tasks, users (each: api, hooks, components, pages)
 ```
 
+`core/session` owns the session lifecycle: it stores and clears the token pair (through
+`core/storage`), counts a generation that invalidates a pending refresh and other in-flight work on a
+login or logout, and runs the logout cleanups.
+
 Rules: dependencies point inward (`pages -> components -> hooks -> api -> core`); `shared` never
 imports from `features`; components never call `fetch` directly; the API base URL is read only from
-`VITE_API_URL`; each feature owns its own types, API calls, hooks and pages.
+`VITE_API_URL`; each feature owns its own API calls, hooks and pages (the `tasks` and `users` features
+build on the `auth` feature's context and `UserRole` type).
 
 ### Frontend commands
 
