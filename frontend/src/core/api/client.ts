@@ -37,6 +37,10 @@ export function invalidateSession(): void {
   refreshInFlight = null
 }
 
+export function getSessionGeneration(): number {
+  return sessionGeneration
+}
+
 export function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   return send<T>(path, options, true)
 }
@@ -125,7 +129,14 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
       }
 
       if (outcome.kind === 'temporary') {
-        throw apiError
+        throw new ApiError({
+          status: apiError.status,
+          code: apiError.code,
+          message: apiError.message,
+          fieldErrors: apiError.fieldErrors,
+          retryAfterSeconds: apiError.retryAfterSeconds,
+          temporaryRefreshFailure: true,
+        })
       }
 
       const currentAccessToken = tokenStorage.getAccessToken()

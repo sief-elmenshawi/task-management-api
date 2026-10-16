@@ -316,6 +316,7 @@ describe('request', () => {
 
     expect(error).toBeInstanceOf(ApiError)
     expect(error.status).toBe(401)
+    expect(error.temporaryRefreshFailure).toBe(true)
     expect(handler).not.toHaveBeenCalled()
     expect(tokenStorage.getAccessToken()).toBe('old')
     expect(tokenStorage.getRefreshToken()).toBe('refresh-1')
@@ -345,6 +346,7 @@ describe('request', () => {
     const error = (await catchError(request('/api/tasks'))) as ApiError
 
     expect(error.status).toBe(401)
+    expect(error.temporaryRefreshFailure).toBe(true)
     expect(handler).not.toHaveBeenCalled()
   })
 

@@ -4,6 +4,7 @@ export type ApiErrorInit = {
   message: string
   fieldErrors?: Record<string, string[]>
   retryAfterSeconds?: number
+  temporaryRefreshFailure?: boolean
 }
 
 export class ApiError extends Error {
@@ -11,6 +12,7 @@ export class ApiError extends Error {
   readonly code: string
   readonly fieldErrors: Record<string, string[]>
   readonly retryAfterSeconds?: number
+  readonly temporaryRefreshFailure: boolean
 
   constructor(init: ApiErrorInit) {
     super(init.message)
@@ -19,5 +21,6 @@ export class ApiError extends Error {
     this.code = init.code
     this.fieldErrors = init.fieldErrors ?? {}
     this.retryAfterSeconds = init.retryAfterSeconds
+    this.temporaryRefreshFailure = init.temporaryRefreshFailure ?? false
   }
 }

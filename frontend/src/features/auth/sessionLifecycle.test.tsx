@@ -31,7 +31,7 @@ const profile: UserResponse = {
 }
 
 function Probe() {
-  const { status, login, logout } = useAuth()
+  const { status, login, logout, retrySession } = useAuth()
 
   return (
     <div>
@@ -41,6 +41,9 @@ function Probe() {
       </button>
       <button type="button" onClick={() => void login({ email: 'ada@example.com', password: 'password1' })}>
         login
+      </button>
+      <button type="button" onClick={retrySession}>
+        retry
       </button>
     </div>
   )
@@ -195,5 +198,110 @@ describe('session lifecycle through AuthProvider and the API client', () => {
     expect(tokenStorage.getAccessToken()).toBe('fresh')
     expect(tokenStorage.getRefreshToken()).toBe('fresh-refresh')
     expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+  })
+
+  it('keeps the session and offers retry when the startup refresh fails with a server error', async () => {
+    let refreshMode: 'fail' | 'ok' = 'fail'
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = String(input)
+      const authHeader = new Headers(init?.headers).get('Authorization')
+
+      if (url.endsWith('/api/auth/refresh')) {
+        if (refreshMode === 'fail') {
+          return problemResponse(503, { status: 503, code: 'Unavailable', detail: 'Service unavailable.' })
+        }
+
+        return jsonResponse(200, {
+          accessToken: 'new',
+          refreshToken: 'refresh-2',
+          expiresAt: '2030-01-01T00:00:00Z',
+        })
+      }
+
+      if (url.endsWith('/api/auth/me')) {
+        if (authHeader === 'Bearer new') {
+          return jsonResponse(200, profile)
+        }
+
+        return problemResponse(401, {
+          status: 401,
+          code: 'Unauthorized',
+          detail: 'Authentication is required.',
+        })
+      }
+
+      return problemResponse(404, { status: 404, code: 'NotFound', detail: 'Not found.' })
+    })
+
+    const actor = userEvent.setup()
+    renderProvider()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('error')
+    })
+    expect(tokenStorage.getAccessToken()).toBe('old')
+    expect(tokenStorage.getRefreshToken()).toBe('refresh-1')
+
+    refreshMode = 'ok'
+    await actor.click(screen.getByRole('button', { name: 'retry' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    })
+    expect(tokenStorage.getAccessToken()).toBe('new')
+    expect(tokenStorage.getRefreshToken()).toBe('refresh-2')
+  })
+
+  it('keeps the session when the startup refresh cannot reach the server', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input)
+
+      if (url.endsWith('/api/auth/refresh')) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+
+      return problemResponse(401, {
+        status: 401,
+        code: 'Unauthorized',
+        detail: 'Authentication is required.',
+      })
+    })
+
+    renderProvider()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('error')
+    })
+    expect(tokenStorage.getAccessToken()).toBe('old')
+    expect(tokenStorage.getRefreshToken()).toBe('refresh-1')
+  })
+
+  it('clears the session when the startup refresh is definitively rejected', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input)
+
+      if (url.endsWith('/api/auth/refresh')) {
+        return problemResponse(401, {
+          status: 401,
+          code: 'InvalidRefreshToken',
+          detail: 'Invalid refresh token.',
+        })
+      }
+
+      return problemResponse(401, {
+        status: 401,
+        code: 'Unauthorized',
+        detail: 'Authentication is required.',
+      })
+    })
+
+    renderProvider()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    })
+    expect(tokenStorage.getAccessToken()).toBeNull()
+    expect(tokenStorage.getRefreshToken()).toBeNull()
   })
 })

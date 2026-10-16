@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../core/api/ApiError'
-import { invalidateSession, setUnauthorizedHandler } from '../../core/api/client'
+import { getSessionGeneration, invalidateSession, setUnauthorizedHandler } from '../../core/api/client'
 import { runLogoutCleanups } from '../../core/session/sessionCleanup'
 import { tokenStorage } from '../../core/storage/tokenStorage'
 import { authApi } from './api'
@@ -48,12 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false
-    const startupAccessToken = tokenStorage.getAccessToken()
+    const startupGeneration = getSessionGeneration()
 
     authApi
       .me()
       .then((profile) => {
-        if (cancelled || tokenStorage.getAccessToken() !== startupAccessToken) {
+        if (cancelled || getSessionGeneration() !== startupGeneration) {
           return
         }
 
@@ -61,11 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('authenticated')
       })
       .catch((error: unknown) => {
-        if (cancelled || tokenStorage.getAccessToken() !== startupAccessToken) {
+        if (cancelled || getSessionGeneration() !== startupGeneration) {
           return
         }
 
-        if (error instanceof ApiError && error.status === 401) {
+        if (
+          error instanceof ApiError &&
+          error.status === 401 &&
+          !error.temporaryRefreshFailure
+        ) {
           clearSession()
           return
         }
