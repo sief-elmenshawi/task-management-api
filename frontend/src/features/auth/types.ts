@@ -34,7 +34,7 @@ export type RegisterValues = {
   confirmPassword: string
 }
 
-export type FieldErrors = Record<string, string>
+export type { FieldErrors } from '../../shared/forms/formErrors'
 
 export type AuthContextValue = {
   status: AuthStatus
