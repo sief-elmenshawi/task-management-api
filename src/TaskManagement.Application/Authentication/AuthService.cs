@@ -216,9 +216,19 @@ public sealed class AuthService : IAuthService
         if (!storedToken.IsRevoked)
         {
             storedToken.Revoke();
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Revoked refresh token for user {UserId}.", storedToken.UserId);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation("Revoked refresh token for user {UserId}.", storedToken.UserId);
+            }
+            catch (ConcurrencyException)
+            {
+                _logger.LogDebug(
+                    "Refresh token for user {UserId} was already revoked by a concurrent request.",
+                    storedToken.UserId);
+            }
         }
 
         return Result.Success();

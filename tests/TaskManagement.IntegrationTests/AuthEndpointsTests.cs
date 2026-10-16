@@ -116,6 +116,30 @@ public class AuthEndpointsTests
     }
 
     [IntegrationFact]
+    public async Task Refresh_WithConcurrentRequestsForTheSameToken_OnlyOneSucceeds()
+    {
+        var client = await _fixture.CreateClientAsync();
+        var email = $"race-{Guid.NewGuid():N}@example.com";
+        await client.PostAsJsonAsync(
+            "/api/auth/register",
+            new RegisterBody("Jane", email, "Password1", "Password1"));
+
+        var login = await client.PostAsJsonAsync("/api/auth/login", new LoginBody(email, "Password1"));
+        var tokens = await login.Content.ReadFromJsonAsync<AuthResponseBody>();
+        tokens.Should().NotBeNull();
+
+        var attempts = Enumerable
+            .Range(0, 5)
+            .Select(_ => client.PostAsJsonAsync("/api/auth/refresh", new RefreshBody(tokens!.RefreshToken)))
+            .ToArray();
+
+        var responses = await Task.WhenAll(attempts);
+
+        responses.Count(response => response.StatusCode == HttpStatusCode.OK).Should().Be(1);
+        responses.Count(response => response.StatusCode == HttpStatusCode.Unauthorized).Should().Be(4);
+    }
+
+    [IntegrationFact]
     public async Task Register_WithEmptyObject_Returns400WithAllFieldErrors()
     {
         var client = await _fixture.CreateClientAsync();
