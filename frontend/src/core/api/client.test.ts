@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from './ApiError'
-import { request, setUnauthorizedHandler } from './client'
+import { invalidateSession, request, setUnauthorizedHandler } from './client'
 import { tokenStorage } from '../storage/tokenStorage'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -462,6 +462,147 @@ describe('request', () => {
 
     await expect(request('/api/tasks')).resolves.toEqual({ ok: true })
 
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('does not store refreshed tokens when the session is invalidated during the refresh', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    tokenStorage.set({
+      accessToken: 'old',
+      refreshToken: 'refresh-1',
+      expiresAt: '2020-01-01T00:00:00Z',
+    })
+
+    let releaseRefresh!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve
+    })
+
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input)
+
+      if (url.endsWith('/api/auth/refresh')) {
+        await gate
+        return jsonResponse(200, {
+          accessToken: 'new',
+          refreshToken: 'refresh-2',
+          expiresAt: '2030-01-01T00:00:00Z',
+        })
+      }
+
+      return problemResponse(401, { status: 401, code: 'Unauthorized', detail: 'Authentication is required.' })
+    })
+
+    const pending = request('/api/tasks')
+    const rejection = expect(pending).rejects.toBeInstanceOf(ApiError)
+
+    await vi.waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith('/api/auth/refresh'))).toBe(true)
+    })
+
+    invalidateSession()
+    tokenStorage.clear()
+    releaseRefresh()
+
+    await rejection
+
+    expect(tokenStorage.getAccessToken()).toBeNull()
+    expect(tokenStorage.getRefreshToken()).toBeNull()
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('keeps tokens from a newer login when an older refresh finishes late', async () => {
+    tokenStorage.set({
+      accessToken: 'old',
+      refreshToken: 'refresh-1',
+      expiresAt: '2020-01-01T00:00:00Z',
+    })
+
+    let releaseRefresh!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve
+    })
+
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input)
+
+      if (url.endsWith('/api/auth/refresh')) {
+        await gate
+        return jsonResponse(200, {
+          accessToken: 'stale',
+          refreshToken: 'stale-refresh',
+          expiresAt: '2030-01-01T00:00:00Z',
+        })
+      }
+
+      return problemResponse(401, { status: 401, code: 'Unauthorized', detail: 'Authentication is required.' })
+    })
+
+    const pending = request('/api/tasks')
+    const rejection = expect(pending).rejects.toBeInstanceOf(ApiError)
+
+    await vi.waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith('/api/auth/refresh'))).toBe(true)
+    })
+
+    invalidateSession()
+    tokenStorage.set({
+      accessToken: 'newer',
+      refreshToken: 'newer-refresh',
+      expiresAt: '2031-01-01T00:00:00Z',
+    })
+    releaseRefresh()
+
+    await rejection
+
+    expect(tokenStorage.getAccessToken()).toBe('newer')
+    expect(tokenStorage.getRefreshToken()).toBe('newer-refresh')
+  })
+
+  it('does not retry or end the session for a request that started under a previous session', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    tokenStorage.set({
+      accessToken: 'old',
+      refreshToken: 'refresh-1',
+      expiresAt: '2020-01-01T00:00:00Z',
+    })
+
+    let releaseResponse!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseResponse = resolve
+    })
+
+    fetchMock.mockImplementation(async (_input, init) => {
+      const authHeader = new Headers(init?.headers).get('Authorization')
+
+      if (authHeader === 'Bearer newer') {
+        return jsonResponse(200, { ok: true })
+      }
+
+      await gate
+      return problemResponse(401, { status: 401, code: 'Unauthorized', detail: 'Authentication is required.' })
+    })
+
+    const pending = request('/api/tasks')
+    const rejection = expect(pending).rejects.toBeInstanceOf(ApiError)
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    invalidateSession()
+    tokenStorage.set({
+      accessToken: 'newer',
+      refreshToken: 'newer-refresh',
+      expiresAt: '2031-01-01T00:00:00Z',
+    })
+    releaseResponse()
+
+    await rejection
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(handler).not.toHaveBeenCalled()
   })
 })

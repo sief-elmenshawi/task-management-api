@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../core/api/ApiError'
-import { setUnauthorizedHandler } from '../../core/api/client'
+import { invalidateSession, setUnauthorizedHandler } from '../../core/api/client'
 import { runLogoutCleanups } from '../../core/session/sessionCleanup'
 import { tokenStorage } from '../../core/storage/tokenStorage'
 import { authApi } from './api'
@@ -19,6 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [reloadToken, setReloadToken] = useState(0)
 
   const clearSession = useCallback(() => {
+    invalidateSession()
     tokenStorage.clear()
     setUser(null)
     setStatus('unauthenticated')
@@ -47,11 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false
+    const startupAccessToken = tokenStorage.getAccessToken()
 
     authApi
       .me()
       .then((profile) => {
-        if (cancelled) {
+        if (cancelled || tokenStorage.getAccessToken() !== startupAccessToken) {
           return
         }
 
@@ -59,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('authenticated')
       })
       .catch((error: unknown) => {
-        if (cancelled) {
+        if (cancelled || tokenStorage.getAccessToken() !== startupAccessToken) {
           return
         }
 
@@ -83,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (values: LoginValues) => {
     const tokens = await authApi.login(values)
+    invalidateSession()
     tokenStorage.set(tokens)
 
     const profile = await authApi.me()

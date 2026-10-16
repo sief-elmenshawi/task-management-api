@@ -26,9 +26,15 @@ type UnauthorizedHandler = () => void
 
 let unauthorizedHandler: UnauthorizedHandler | null = null
 let refreshInFlight: Promise<void> | null = null
+let sessionGeneration = 0
 
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
   unauthorizedHandler = handler
+}
+
+export function invalidateSession(): void {
+  sessionGeneration += 1
+  refreshInFlight = null
 }
 
 export function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -59,6 +65,7 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
   const skipUnauthorizedHandler = options.skipUnauthorizedHandler ?? false
 
   const usedAccessToken = auth ? tokenStorage.getAccessToken() : null
+  const requestGeneration = sessionGeneration
 
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (options.body !== undefined) {
@@ -109,6 +116,10 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
     if (canRetry) {
       const outcome = await tryRefreshSession(usedAccessToken)
 
+      if (sessionGeneration !== requestGeneration) {
+        throw apiError
+      }
+
       if (outcome.kind === 'refreshed') {
         return await send<T>(path, options, false)
       }
@@ -126,6 +137,10 @@ async function send<T>(path: string, options: RequestOptions, canRetry: boolean)
       if (hasNewerTokens) {
         return await send<T>(path, options, false)
       }
+    }
+
+    if (sessionGeneration !== requestGeneration) {
+      throw apiError
     }
 
     if (unauthorizedHandler !== null) {
@@ -177,6 +192,8 @@ async function performRefresh(): Promise<void> {
     throw new ApiError({ status: 401, code: 'NoRefreshToken', message: 'Your session has expired.' })
   }
 
+  const generation = sessionGeneration
+
   const tokens = await send<RefreshResponse>(
     '/api/auth/refresh',
     {
@@ -188,7 +205,9 @@ async function performRefresh(): Promise<void> {
     false,
   )
 
-  tokenStorage.set(tokens)
+  if (generation === sessionGeneration) {
+    tokenStorage.set(tokens)
+  }
 }
 
 async function readProblem(response: Response): Promise<Problem> {
